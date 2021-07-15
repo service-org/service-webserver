@@ -15,9 +15,6 @@ from eventlet.greenthread import GreenThread
 from service_core.core.decorator import AsLazyProperty
 from service_core.core.service.entrypoint import BaseEntrypoint
 
-if t.TYPE_CHECKING:
-    pass
-
 from .producer import ReqProducer
 
 
@@ -46,7 +43,7 @@ class BaseReqConsumer(BaseEntrypoint):
 
         @return: Rule
         """
-        return Rule(self.raw_url, methods=self.methods, **self.options)
+        return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.options)
 
     def setup(self) -> None:
         """ 生命周期 - 载入阶段
@@ -101,6 +98,8 @@ class BaseReqConsumer(BaseEntrypoint):
 
 
 class WebReqConsumer(BaseReqConsumer):
+    """ WEB请求消费者类 """
+
     name = 'WebReqConsumer'
 
     def handle_request(self, request) -> t.Tuple:
@@ -136,6 +135,8 @@ class WebReqConsumer(BaseReqConsumer):
 
 
 class ApiReqConsumer(BaseReqConsumer):
+    """ API请求消费者类 """
+
     name = 'ApiReqConsumer'
 
     def handle_request(self, request) -> t.Tuple:
