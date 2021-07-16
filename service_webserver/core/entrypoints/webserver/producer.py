@@ -195,8 +195,6 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @param state: 套接字状态
         @return: None
         """
-        from werkzeug import Response
-        return Response('ok')
-        # connection = [addr, client, state]
-        # # 请求最终交由WsgiApp去处理
-        # self.wsgi_server.process_request(connection)
+        connection = [addr, client, state]
+        # 请求最终交由WsgiApp去处理
+        self.wsgi_server.process_request(connection)
