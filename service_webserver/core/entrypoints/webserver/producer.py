@@ -104,7 +104,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         self.stopped = True
-        kill_func = AsFriendlyFunc(self.wsgi_server.close, all_exception=(socket.error,))
+        kill_func = AsFriendlyFunc(self.wsgi_socket.close, all_exception=(socket.error,))
         kill_func()
         kill_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
         kill_func()
@@ -115,7 +115,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         self.stopped = True
-        kill_func = AsFriendlyFunc(self.wsgi_server.close, all_exception=(socket.error,))
+        kill_func = AsFriendlyFunc(self.wsgi_socket.close, all_exception=(socket.error,))
         kill_func()
         kill_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
         kill_func()
