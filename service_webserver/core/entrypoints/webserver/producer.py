@@ -7,9 +7,13 @@ from __future__ import annotations
 import eventlet
 import typing as t
 
+from eventlet import wsgi
+from eventlet import support
+from eventlet import greenio
+from eventlet import wrap_ssl
 from logging import getLogger
+from eventlet.green import socket
 from greenlet import GreenletExit
-from eventlet import wsgi, wrap_ssl
 from service_core.core.decorator import AsFriendlyFunc
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.core.service.extension import ShareExtension
@@ -20,6 +24,7 @@ from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
 if t.TYPE_CHECKING:
     from werkzeug.routing import Map
     from eventlet.wsgi import Server
+    from eventlet.greenthread import GreenThread
     from eventlet.greenio.base import GreenSocket
 
 from werkzeug.routing import Map
@@ -41,6 +46,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @param kwargs: 命名参数
         """
         self.gt = None
+        self.connections = {}
         # 停止标志 - 是否停止
         self.stopped = False
         self.wsgi_server = None
@@ -71,10 +77,12 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         max_connect = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.max_connect', default=None)
         max_connect = max_connect or DEFAULT_WEBSERVER_MAX_CONNECTIONS
         self.max_connect = self.max_connect or max_connect
-        srv_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.srv_options', default={})
-        self.srv_options = srv_options | self.srv_options
         ssl_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.ssl_options', default={})
         self.ssl_options = ssl_options | self.srv_options
+        srv_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.srv_options', default={})
+        self.srv_options = srv_options | self.srv_options
+        self.srv_options.setdefault('log', logger)
+        self.srv_options.setdefault('log_output', True)
 
     def start(self) -> None:
         """ 生命周期 - 启动阶段
@@ -96,8 +104,10 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         self.stopped = True
-        wait_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
-        wait_func()
+        kill_func = AsFriendlyFunc(self.wsgi_server.close, all_exception=(socket.error,))
+        kill_func()
+        kill_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
+        kill_func()
 
     def kill(self) -> None:
         """ 生命周期 - 强杀阶段
@@ -105,8 +115,10 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         self.stopped = True
-        wait_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
-        wait_func()
+        kill_func = AsFriendlyFunc(self.wsgi_server.close, all_exception=(socket.error,))
+        kill_func()
+        kill_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
+        kill_func()
 
     def create_urls_map(self) -> Map:
         """ 创建一个wsgi urls map
@@ -132,43 +144,47 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         wsgi_socket = wrap_ssl(self.wsgi_socket, **self.ssl_options) if self.ssl_options else self.wsgi_socket
         return wsgi.Server(wsgi_socket, self.wsgi_socket.getsockname(), wsgi_app, **self.srv_options)
 
+    def _link_cleanup_connection(self, gt: GreenThread, connection: t.List):
+        """ 请求处理完成时回调函数
+
+        @param gt: 协程对象
+        @param connection: 连接对象
+        @return: None
+        """
+        connection[2] = wsgi.STATE_CLOSE
+        greenio.shutdown_safe(connection[1])
+        connection[1].close()
+        self.connections.pop(connection[0], None)
+
     def spawn_handle_request_thread(self) -> None:
         """ 创建专门处理请求的协程
 
         @return: None
         """
-        def succ_callback(results: t.Any) -> t.Any:
-            """ 成功处理连接回调
-
-            @param results: 结果对象
-            @return: t.Any
-            """
-            return results
-
-        def fail_callback(excinfo: t.Tuple) -> None:
-            """ 失败处理连接回调
-
-            @param excinfo: 异常对象
-            @return: None
-            """
-            exc_type, exc_value, exc_trace = excinfo
-            print('!' * 100)
-            logger.error(exc_value)
-
         fun = self.handle_request
         tid = f'{self}.self_handle_request'
-        accept = AsFriendlyFunc(self.wsgi_socket.accept,
-                                succ_callback=succ_callback,
-                                fail_callback=fail_callback,
-                                all_exception=(BrokenPipeError,))
-        while not self.stopped:
-            client, addr = accept()
-            args = (client, addr)
-            source_string = f'{addr[0]}:{addr[1]}'
-            target_string = f'{self.listen_host}:{self.listen_port}'
-            logger.debug(f'{source_string} connect to {target_string}')
-            client.settimeout(self.wsgi_server.socket_timeout)
-            self.container.spawn_splits_thread(fun, args=args, tid=tid)
+        try:
+            while not self.stopped:
+                try:
+                    client, addr = self.wsgi_socket.accept()
+                    args = (client, addr)
+                    source_string = f'{addr[0]}:{addr[1]}'
+                    target_string = f'{self.listen_host}:{self.listen_port}'
+                    logger.debug(f'{source_string} connect to {target_string}')
+                    client.settimeout(self.wsgi_server.socket_timeout)
+                    self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
+                    gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
+                    gt.link(self._link_cleanup_connection, self.connections[addr])
+                except wsgi.ACCEPT_EXCEPTIONS as accept_exception:
+                    if support.get_errno(accept_exception) not in wsgi.ACCEPT_ERRNO:
+                        raise accept_exception
+                except (KeyboardInterrupt, SystemExit):
+                    break
+        finally:
+            for connection in self.connections.values():
+                prev_state = connection[2]
+                connection[2] = wsgi.STATE_CLOSE
+                (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
         logger.debug(f'good bey ~')
 
     def handle_request(self, client: GreenSocket, addr: t.Tuple) -> None:
@@ -181,7 +197,3 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         connection = [addr, client, wsgi.STATE_IDLE]
         # 请求最终交由WsgiApp去处理
         self.wsgi_server.process_request(connection)
-
-
-from eventlet import wsgi
-wsgi.server()
