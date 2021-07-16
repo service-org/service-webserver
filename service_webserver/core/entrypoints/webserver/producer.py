@@ -85,6 +85,11 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.srv_options.setdefault('log', logger)
         self.srv_options.setdefault('log_output', True)
 
+    def _link(self, gt):
+        print('!' * 100)
+        print('connect协程被强杀')
+        print('!' * 100)
+
     def start(self) -> None:
         """ 生命周期 - 启动阶段
 
@@ -98,6 +103,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.wsgi_socket.settimeout(None)
         self.wsgi_server = self.create_wsgi_server()
         self.gt = self.container.spawn_splits_thread(fun, args=args, kwargs=kwargs, tid=tid)
+        self.gt.link(self._link)
 
     def stop(self) -> None:
         """ 生命周期 - 停止阶段
