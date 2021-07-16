@@ -167,12 +167,11 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
             while not self.stopped:
                 try:
                     client, addr = self.wsgi_socket.accept()
-                    args = (client, addr)
                     source_string = f'{addr[0]}:{addr[1]}'
                     target_string = f'{self.listen_host}:{self.listen_port}'
                     logger.debug(f'{source_string} connect to {target_string}')
                     client.settimeout(self.wsgi_server.socket_timeout)
-                    self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
+                    args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
                     gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
                     gt.link(self._link_cleanup_connection, self.connections[addr])
                 except wsgi.ACCEPT_EXCEPTIONS as accept_exception:
@@ -180,9 +179,6 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                         raise accept_exception
                 except (KeyboardInterrupt, SystemExit):
                     break
-                finally:
-                    print('=' * 100)
-                    raise 
         finally:
             for connection in self.connections.values():
                 prev_state = connection[2]
@@ -190,13 +186,14 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                 (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
         logger.debug(f'good bey ~')
 
-    def handle_request(self, client: GreenSocket, addr: t.Tuple) -> None:
+    def handle_request(self, addr: t.Tuple, client: GreenSocket, state: t.Text) -> None:
         """ 通过server调用app处理
 
         @param client: 客户端对象
         @param addr: 客户端的地址
+        @param state: 套接字状态
         @return: None
         """
-        connection = [addr, client, wsgi.STATE_IDLE]
+        connection = [addr, client, state]
         # 请求最终交由WsgiApp去处理
         self.wsgi_server.process_request(connection)
