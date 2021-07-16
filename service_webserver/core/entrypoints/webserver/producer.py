@@ -182,6 +182,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                     break
                 finally:
                     print('=' * 100)
+                    raise 
         finally:
             for connection in self.connections.values():
                 prev_state = connection[2]
