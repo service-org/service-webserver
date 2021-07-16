@@ -120,7 +120,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
 
         @return: t.Callable
         """
-        return AsFriendlyFunc(WsgiApp(self).wsgi_app, all_exception=(OSError,))
+        return WsgiApp(self).wsgi_app
 
     def create_wsgi_server(self) -> Server:
         """ 创建一个wsgi server
@@ -137,10 +137,32 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
 
         @return: None
         """
+        def succ_callback(results: t.Any) -> t.Any:
+            """ 成功处理连接回调
+
+            @param results: 结果对象
+            @return: t.Any
+            """
+            return results
+
+        def fail_callback(excinfo: t.Tuple) -> None:
+            """ 失败处理连接回调
+
+            @param excinfo: 异常对象
+            @return: None
+            """
+            exc_type, exc_value, exc_trace = excinfo
+            print('!' * 100)
+            logger.error(exc_value)
+
         fun = self.handle_request
         tid = f'{self}.self_handle_request'
+        accept = AsFriendlyFunc(self.wsgi_socket.accept,
+                                succ_callback=succ_callback,
+                                fail_callback=fail_callback,
+                                all_exception=(BrokenPipeError,))
         while not self.stopped:
-            client, addr = self.wsgi_socket.accept()
+            client, addr = accept()
             args = (client, addr)
             source_string = f'{addr[0]}:{addr[1]}'
             target_string = f'{self.listen_host}:{self.listen_port}'
@@ -159,3 +181,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         connection = [addr, client, wsgi.STATE_IDLE]
         # 请求最终交由WsgiApp去处理
         self.wsgi_server.process_request(connection)
+
+
+from eventlet import wsgi
+wsgi.server()

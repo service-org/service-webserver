@@ -7,7 +7,6 @@ from __future__ import annotations
 import typing as t
 import werkzeug.exceptions
 from werkzeug.wrappers import Request
-from service_core.core.decorator import AsFriendlyFunc
 
 if t.TYPE_CHECKING:
     from werkzeug.wrappers.response import StartResponse
@@ -59,4 +58,4 @@ class WsgiApp(object):
         @param start_response: 响应对象
         @return: t.Any
         """
-        return AsFriendlyFunc(self.wsgi_app, all_exception=(OSError,))
+        return self.wsgi_app(environ, start_response)
