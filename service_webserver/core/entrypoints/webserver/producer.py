@@ -177,8 +177,8 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                 except wsgi.ACCEPT_EXCEPTIONS as accept_exception:
                     if support.get_errno(accept_exception) not in wsgi.ACCEPT_ERRNO:
                         raise accept_exception
-                except (KeyboardInterrupt, SystemExit):
-                    break
+                except OSError as e:
+                    logger.error(e)
         finally:
             for connection in self.connections.values():
                 prev_state = connection[2]
