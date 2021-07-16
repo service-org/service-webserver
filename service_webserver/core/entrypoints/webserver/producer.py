@@ -15,6 +15,7 @@ from logging import getLogger
 from eventlet.green import socket
 from greenlet import GreenletExit
 from service_core.core.decorator import AsFriendlyFunc
+from service_core.core.as_helper import get_obj_string_repr
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
@@ -178,7 +179,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                     if support.get_errno(accept_exception) not in wsgi.ACCEPT_ERRNO:
                         raise accept_exception
                 except OSError as e:
-                    logger.error(e)
+                    logger.error(f'accept connect with error, {get_obj_string_repr(e)}')
         finally:
             for connection in self.connections.values():
                 prev_state = connection[2]
