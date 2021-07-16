@@ -30,8 +30,8 @@ class WsgiApp(object):
         self.producer = producer
         self.urls_map = producer.create_urls_map()
 
-    def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
-        """ 做处理函数
+    def wsgi_app(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
+        """ 请求处理器
 
         @param environ: 环境对象
         @param start_response: 响应对象
@@ -51,3 +51,12 @@ class WsgiApp(object):
         except werkzeug.exceptions.HTTPException as response:
             # 注意: HTTPException其实也是一个Response
             return response(environ, start_response)
+
+    def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
+        """ 请求处理器
+
+        @param environ: 环境对象
+        @param start_response: 响应对象
+        @return: t.Any
+        """
+        return self.wsgi_app(environ, start_response)

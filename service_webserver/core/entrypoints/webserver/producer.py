@@ -79,8 +79,8 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         args, kwargs = (), {}
+        tid = f'{self}.self_handle_connect'
         fun = self.spawn_handle_request_thread
-        tid = f'{self.name}.self_handle_connect'
         addr = (self.listen_host, self.listen_port)
         self.wsgi_socket = eventlet.listen(addr, backlog=self.max_connect)
         self.wsgi_socket.settimeout(None)
@@ -99,7 +99,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
 
         @return: t.Callable
         """
-        return WsgiApp(self)
+        return WsgiApp(self).wsgi_app
 
     def create_wsgi_server(self) -> Server:
         """ 创建一个wsgi server
@@ -107,13 +107,9 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: Server
         """
         wsgi_app = self.create_wsgi_app()
-        # 根据配置判断是否启用HTTPS
-        if not self.ssl_options:
-            wsgi_socket = self.wsgi_socket
-        else:
-            wsgi_socket = wrap_ssl(self.wsgi_socket, **self.ssl_options)
-        addr = self.wsgi_socket.getsockname()
-        return wsgi.Server(wsgi_socket, addr, wsgi_app, **self.srv_options)
+        # 根据配置选项中SSL选项判断是否启用HTTPS
+        wsgi_socket = wrap_ssl(self.wsgi_socket, **self.ssl_options) if self.ssl_options else self.wsgi_socket
+        return wsgi.Server(wsgi_socket, self.wsgi_socket.getsockname(), wsgi_app, **self.srv_options)
 
     def spawn_handle_request_thread(self) -> None:
         """ 创建专门处理请求的协程
@@ -121,15 +117,15 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @return: None
         """
         fun = self.handle_request
-        tid = f'{self.name}.self_handle_request'
+        tid = f'{self}.self_handle_request'
         while not self.stopped:
             client, addr = self.wsgi_socket.accept()
+            args = (client, addr)
             source_string = f'{addr[-1][0]}:{addr[-1][1]}'
             target_string = f'{self.listen_host}:{self.listen_port}'
             logger.debug(f'{source_string} connect to {target_string}')
             client.settimeout(self.wsgi_socket.socket_timeout)
-            args, kwargs = (client, addr), {}
-            self.container.spawn_splits_thread(fun, args=args, kwargs=kwargs, tid=tid)
+            self.container.spawn_splits_thread(fun, args=args, tid=tid)
         logger.debug(f'good bey ~')
 
     def handle_request(self, client: GreenSocket, addr: t.Tuple) -> None:

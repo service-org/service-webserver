@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import json
+import http
 import typing as t
 
 if t.TYPE_CHECKING:
@@ -11,9 +13,14 @@ if t.TYPE_CHECKING:
 
 from eventlet.event import Event
 from werkzeug.routing import Rule
+from werkzeug.wrappers import Response
 from eventlet.greenthread import GreenThread
+from service_webserver.exception import BadRequest
 from service_core.core.decorator import AsLazyProperty
+from service_webserver.constants import WEBSERVER_CONFIG_KEY
+from service_core.exception import gen_exception_description
 from service_core.core.service.entrypoint import BaseEntrypoint
+from service_webserver.core.context import from_headers_to_context
 
 from .producer import ReqProducer
 
@@ -32,9 +39,13 @@ class BaseReqConsumer(BaseEntrypoint):
         @param methods: 请求方法
         @param options: 规则选项
         """
+        # 相关配置 - 头部映射
+        self.headmap = {}
+
         self.raw_url = raw_url
         self.methods = methods
         self.options = options
+
         super(BaseReqConsumer, self).__init__()
 
     @AsLazyProperty
@@ -43,6 +54,7 @@ class BaseReqConsumer(BaseEntrypoint):
 
         @return: Rule
         """
+        # 官方推荐并把endpoint的类型限定为字符串! 优化匹配暂且指定为当前entrypoint
         return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.options)
 
     def setup(self) -> None:
@@ -51,6 +63,9 @@ class BaseReqConsumer(BaseEntrypoint):
         @return: None
         """
         self.producer.reg_extension(self)
+        # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
+        map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})
+        self.headmap = map_headers | self.headmap
 
     def stop(self) -> None:
         """ 生命周期 - 停止阶段
@@ -76,7 +91,14 @@ class BaseReqConsumer(BaseEntrypoint):
         @param request: 请求对象
         @return: t.Tuple
         """
-        pass
+        event = Event()
+        tid = f'{self}.self_handle_request'
+        worker_context = from_headers_to_context(dict(request.headers), self.headmap)
+        args, kwargs = (request,), request.path_group_dict
+        gt = self.container.spawn_worker_thread(self, args, kwargs, worker_context, tid=tid)
+        gt.link(self._link_results, event)
+        context, excinfo, results = event.wait()
+        return context, excinfo, results
 
     def handle_result(self, context: WorkerContext, results: t.Any) -> t.Any:
         """ 处理正常结果
@@ -122,7 +144,17 @@ class WebReqConsumer(BaseReqConsumer):
         @param results: 结果对象
         @return: t.Any
         """
-        pass
+        if isinstance(results, Response):
+            return results
+        headers = None
+        if not isinstance(results, tuple):
+            payload, status = results, http.HTTPStatus.OK.value
+        else:
+            if len(results) == 3:
+                payload, headers, status = results
+            else:
+                payload, status = results
+        return Response(payload, status=status, headers=headers)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
         """ 处理异常结果
@@ -131,7 +163,22 @@ class WebReqConsumer(BaseReqConsumer):
         @param excinfo: 异常对象
         @return: t.Any
         """
-        pass
+        exc_type, exc_value, exc_trace = excinfo
+        if isinstance(exc_value, BadRequest):
+            status = http.HTTPStatus.BAD_REQUEST.value
+        else:
+            status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+        headers = {'Content-Type': 'text/html; charset=utf-8'}
+        data = gen_exception_description(exc_value)
+        original = data["original"]
+        original = f'{original} -' if original else original
+        payload = (
+            f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">'
+            f'<title>{status} {exc_type}</title>'
+            f'<h1>{data["exc_type"]}</h1>'
+            f'<p>from {original} {data["exc_errs"]}</p>'
+        )
+        return Response(payload, status=status, headers=headers)
 
 
 class ApiReqConsumer(BaseReqConsumer):
@@ -159,7 +206,14 @@ class ApiReqConsumer(BaseReqConsumer):
         @param results: 结果对象
         @return: t.Any
         """
-        pass
+        status = http.HTTPStatus.OK.value
+        headers = {'Content-Type': 'application/json'}
+        errs, call_id = None, context.worker_request_id
+        payload = json.dumps({
+            'errs': None, 'call_id': call_id,
+            'data': results, 'code': 'Request:Success',
+        })
+        return Response(payload, status=status, headers=headers)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
         """ 处理异常结果
@@ -168,4 +222,14 @@ class ApiReqConsumer(BaseReqConsumer):
         @param excinfo: 异常对象
         @return: t.Any
         """
-        pass
+        status = http.HTTPStatus.OK.value
+        exc_type, exc_value, exc_trace = excinfo
+        exc_name = exc_type.__name__
+        headers = {'Content-Type': 'application/json'}
+        data, call_id = None, context.worker_request_id
+        payload = json.dumps({
+            'data': None, 'call_id': call_id,
+            'code': 'ServerError:{0}'.format(exc_name),
+            'errs': gen_exception_description(exc_value)
+        })
+        return Response(payload, status=status, headers=headers)
