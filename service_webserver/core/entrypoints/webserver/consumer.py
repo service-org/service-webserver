@@ -8,9 +8,6 @@ import json
 import http
 import typing as t
 
-if t.TYPE_CHECKING:
-    from service_core.core.context import WorkerContext
-
 from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
@@ -21,6 +18,9 @@ from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exception import gen_exception_description
 from service_core.core.service.entrypoint import BaseEntrypoint
 from service_webserver.core.context import from_headers_to_context
+
+if t.TYPE_CHECKING:
+    from service_core.core.context import WorkerContext
 
 from .producer import ReqProducer
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 import typing as t
 import werkzeug.exceptions
 from eventlet.green import socket
+from werkzeug.wrappers import Request
 from service_core.core.decorator import AsFriendlyFunc
 
 if t.TYPE_CHECKING:
@@ -17,8 +18,6 @@ if t.TYPE_CHECKING:
 
     # 生产者类型
     Producer = t.TypeVar('Producer', bound=ReqProducer)
-
-from werkzeug.wrappers import Request
 
 
 class WsgiApp(object):
@@ -32,7 +31,6 @@ class WsgiApp(object):
         self.producer = producer
         self.urls_map = producer.create_urls_map()
 
-    @AsFriendlyFunc(all_exception=(socket.error,))
     def wsgi_app(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
         """ 请求处理器
 
@@ -62,4 +60,4 @@ class WsgiApp(object):
         @param start_response: 响应对象
         @return: t.Any
         """
-        return self.wsgi_app(environ, start_response)
+        return AsFriendlyFunc(self.wsgi_app, all_exception=(socket.error,))

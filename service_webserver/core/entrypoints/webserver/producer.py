@@ -7,13 +7,8 @@ from __future__ import annotations
 import eventlet
 import typing as t
 
-if t.TYPE_CHECKING:
-    from werkzeug.routing import Map
-    from eventlet.wsgi import Server
-    from eventlet.greenio.base import GreenSocket
-
 from logging import getLogger
-from werkzeug.routing import Map
+from eventlet.green import socket
 from greenlet import GreenletExit
 from eventlet import wsgi, wrap_ssl
 from service_core.core.decorator import AsFriendlyFunc
@@ -22,6 +17,13 @@ from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
 from service_core.core.service.entrypoint import BaseEntrypoint
 from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
+
+if t.TYPE_CHECKING:
+    from werkzeug.routing import Map
+    from eventlet.wsgi import Server
+    from eventlet.greenio.base import GreenSocket
+
+from werkzeug.routing import Map
 
 from .wsgi_app import WsgiApp
 
@@ -119,7 +121,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
 
         @return: t.Callable
         """
-        return WsgiApp(self).wsgi_app
+        return AsFriendlyFunc(WsgiApp(self).wsgi_app, all_exception=(socket.error,))
 
     def create_wsgi_server(self) -> Server:
         """ 创建一个wsgi server
