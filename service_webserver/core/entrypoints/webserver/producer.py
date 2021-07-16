@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import sys
+
 import eventlet
 import typing as t
 
@@ -175,7 +177,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                 gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
                 gt.link(self._link_cleanup_connection, self.connections[addr])
             except:
-                pass
+                logger.error(f'unexpected error occurred while accepting conn', exc_info=True)
         for connection in self.connections.values():
             prev_state = connection[2]
             connection[2] = wsgi.STATE_CLOSE
