@@ -180,6 +180,8 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                         raise accept_exception
                 except (KeyboardInterrupt, SystemExit):
                     break
+                finally:
+                    print('=' * 100)
         finally:
             for connection in self.connections.values():
                 prev_state = connection[2]
