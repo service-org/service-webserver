@@ -58,4 +58,5 @@ class WsgiApp(object):
         @param start_response: 响应对象
         @return: t.Any
         """
+        print('=' * 100)
         return self.wsgi_app(environ, start_response)
