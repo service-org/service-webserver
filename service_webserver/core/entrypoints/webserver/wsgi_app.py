@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import typing as t
 import werkzeug.exceptions
-from eventlet.green import socket
 from werkzeug.wrappers import Request
 from service_core.core.decorator import AsFriendlyFunc
 
@@ -60,4 +59,4 @@ class WsgiApp(object):
         @param start_response: 响应对象
         @return: t.Any
         """
-        return AsFriendlyFunc(self.wsgi_app, all_exception=(socket.error,))
+        return AsFriendlyFunc(self.wsgi_app, all_exception=(OSError,))

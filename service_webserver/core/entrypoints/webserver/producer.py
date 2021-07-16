@@ -8,7 +8,6 @@ import eventlet
 import typing as t
 
 from logging import getLogger
-from eventlet.green import socket
 from greenlet import GreenletExit
 from eventlet import wsgi, wrap_ssl
 from service_core.core.decorator import AsFriendlyFunc
@@ -121,7 +120,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
 
         @return: t.Callable
         """
-        return AsFriendlyFunc(WsgiApp(self).wsgi_app, all_exception=(socket.error,))
+        return AsFriendlyFunc(WsgiApp(self).wsgi_app, all_exception=(OSError,))
 
     def create_wsgi_server(self) -> Server:
         """ 创建一个wsgi server
