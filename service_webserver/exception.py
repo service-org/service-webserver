@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-from service_core.exception import Error
+from service_core.exception import RemoteError
 
 
-class BadRequest(Error):
+class BadRequest(RemoteError):
     """ 400异常请求 """
     pass

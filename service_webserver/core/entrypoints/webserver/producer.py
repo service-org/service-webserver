@@ -14,7 +14,9 @@ if t.TYPE_CHECKING:
 
 from logging import getLogger
 from werkzeug.routing import Map
+from greenlet import GreenletExit
 from eventlet import wsgi, wrap_ssl
+from service_core.core.decorator import AsFriendlyFunc
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
@@ -87,12 +89,30 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.wsgi_server = self.create_wsgi_server()
         self.gt = self.container.spawn_splits_thread(fun, args=args, kwargs=kwargs, tid=tid)
 
+    def stop(self) -> None:
+        """ 生命周期 - 停止阶段
+
+        @return: None
+        """
+        self.stopped = True
+        wait_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
+        wait_func()
+
+    def kill(self) -> None:
+        """ 生命周期 - 强杀阶段
+
+        @return: None
+        """
+        self.stopped = True
+        wait_func = AsFriendlyFunc(self.gt.kill, all_exception=(GreenletExit,))
+        wait_func()
+
     def create_urls_map(self) -> Map:
         """ 创建一个wsgi urls map
 
         @return: Map
         """
-        return Map({e.rule for e in self.all_extensions}, **self.map_options)
+        return Map([e.rule for e in self.all_extensions], **self.map_options)
 
     def create_wsgi_app(self) -> t.Callable:
         """ 创建一个wsgi application
@@ -121,10 +141,10 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         while not self.stopped:
             client, addr = self.wsgi_socket.accept()
             args = (client, addr)
-            source_string = f'{addr[-1][0]}:{addr[-1][1]}'
+            source_string = f'{addr[0]}:{addr[1]}'
             target_string = f'{self.listen_host}:{self.listen_port}'
             logger.debug(f'{source_string} connect to {target_string}')
-            client.settimeout(self.wsgi_socket.socket_timeout)
+            client.settimeout(self.wsgi_server.socket_timeout)
             self.container.spawn_splits_thread(fun, args=args, tid=tid)
         logger.debug(f'good bey ~')
 
@@ -135,6 +155,6 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         @param addr: 客户端的地址
         @return: None
         """
-        connection = [client, addr, wsgi.STATE_IDLE]
+        connection = [addr, client, wsgi.STATE_IDLE]
         # 请求最终交由WsgiApp去处理
         self.wsgi_server.process_request(connection)
