@@ -85,11 +85,6 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.srv_options.setdefault('log', logger)
         self.srv_options.setdefault('log_output', True)
 
-    def _link(self, gt):
-        print('!' * 100)
-        print('connect协程被强杀')
-        print('!' * 100)
-
     def start(self) -> None:
         """ 生命周期 - 启动阶段
 
@@ -103,7 +98,6 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.wsgi_socket.settimeout(None)
         self.wsgi_server = self.create_wsgi_server()
         self.gt = self.container.spawn_splits_thread(fun, args=args, kwargs=kwargs, tid=tid)
-        self.gt.link(self._link)
 
     def stop(self) -> None:
         """ 生命周期 - 停止阶段
@@ -170,27 +164,22 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         """
         fun = self.handle_request
         tid = f'{self}.self_handle_request'
-        try:
-            while not self.stopped:
-                try:
-                    client, addr = self.wsgi_socket.accept()
-                    source_string = f'{addr[0]}:{addr[1]}'
-                    target_string = f'{self.listen_host}:{self.listen_port}'
-                    logger.debug(f'{source_string} connect to {target_string}')
-                    client.settimeout(self.wsgi_server.socket_timeout)
-                    args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
-                    gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
-                    gt.link(self._link_cleanup_connection, self.connections[addr])
-                except wsgi.ACCEPT_EXCEPTIONS as accept_exception:
-                    if support.get_errno(accept_exception) not in wsgi.ACCEPT_ERRNO:
-                        raise accept_exception
-                except OSError as e:
-                    logger.error(f'accept connect with error, {get_obj_string_repr(e)}')
-        finally:
-            for connection in self.connections.values():
-                prev_state = connection[2]
-                connection[2] = wsgi.STATE_CLOSE
-                (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
+        while not self.stopped:
+            try:
+                client, addr = self.wsgi_socket.accept()
+                source_string = f'{addr[0]}:{addr[1]}'
+                target_string = f'{self.listen_host}:{self.listen_port}'
+                logger.debug(f'{source_string} connect to {target_string}')
+                client.settimeout(self.wsgi_server.socket_timeout)
+                args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
+                gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
+                gt.link(self._link_cleanup_connection, self.connections[addr])
+            except:
+                pass
+        for connection in self.connections.values():
+            prev_state = connection[2]
+            connection[2] = wsgi.STATE_CLOSE
+            (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
         logger.debug(f'good bey ~')
 
     def handle_request(self, addr: t.Tuple, client: GreenSocket, state: t.Text) -> None:
