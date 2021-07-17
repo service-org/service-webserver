@@ -4,10 +4,14 @@
 
 from __future__ import annotations
 
-import json
-import http
 import typing as t
 
+try:
+    import ujson as json
+except:
+    import json
+
+from eventlet.green import http
 from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
