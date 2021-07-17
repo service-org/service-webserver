@@ -6,15 +6,11 @@ from __future__ import annotations
 
 import typing as t
 
-try:
-    import ujson as json
-except:
-    import json
-
 from eventlet.green import http
 from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
+from service_green.core.green import json
 from eventlet.greenthread import GreenThread
 from service_webserver.exception import BadRequest
 from service_core.core.decorator import AsLazyProperty
