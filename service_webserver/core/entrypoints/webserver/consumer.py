@@ -150,9 +150,11 @@ class WebReqConsumer(BaseReqConsumer):
         """
         if isinstance(results, Response):
             return results
-        headers = None
+        else:
+            headers = None
+            status = http.HTTPStatus.OK.value
         if not isinstance(results, tuple):
-            payload, status = results, http.HTTPStatus.OK.value
+            payload = results
         else:
             if len(results) == 3:
                 payload, headers, status = results
