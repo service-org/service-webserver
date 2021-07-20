@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import typing as t
+import werkzeug.exceptions
 
 from eventlet.green import http
 from eventlet.event import Event
@@ -170,19 +171,20 @@ class WebReqConsumer(BaseReqConsumer):
         @return: t.Any
         """
         exc_type, exc_value, exc_trace = excinfo
-        if isinstance(exc_value, BadRequest):
-            status = http.HTTPStatus.BAD_REQUEST.value
+        exc_name = exc_type.__name__
+        if hasattr(werkzeug.exceptions, exc_name):
+            status = getattr(werkzeug.exceptions, exc_name).code
         else:
             status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
         headers = {'Content-Type': 'text/html; charset=utf-8'}
         data = gen_exception_description(exc_value)
-        original = data["original"]
+        original = data['original']
         original = f'{original} -' if original else original
         payload = (
             f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">'
             f'<title>{status} {exc_type}</title>'
             f'<h1>{data["exc_type"]}</h1>'
-            f'<p>from {original} {data["exc_errs"]}</p>'
+            f'<p>from {original}{data["exc_errs"]}</p>'
         )
         return Response(payload, status=status, headers=headers)
 
@@ -215,10 +217,7 @@ class ApiReqConsumer(BaseReqConsumer):
         status = http.HTTPStatus.OK.value
         headers = {'Content-Type': 'application/json'}
         errs, call_id = None, context.worker_request_id
-        payload = json.dumps({
-            'errs': None, 'call_id': call_id,
-            'data': results, 'code': 'Request:Success',
-        })
+        payload = json.dumps({'code': status, 'errs': None, 'data': results, 'call_id': call_id})
         return Response(payload, status=status, headers=headers)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
@@ -228,14 +227,14 @@ class ApiReqConsumer(BaseReqConsumer):
         @param excinfo: 异常对象
         @return: t.Any
         """
-        status = http.HTTPStatus.OK.value
         exc_type, exc_value, exc_trace = excinfo
         exc_name = exc_type.__name__
+        if hasattr(werkzeug.exceptions, exc_name):
+            status = getattr(werkzeug.exceptions, exc_name).code
+        else:
+            status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
         headers = {'Content-Type': 'application/json'}
         data, call_id = None, context.worker_request_id
-        payload = json.dumps({
-            'data': None, 'call_id': call_id,
-            'code': 'ServerError:{0}'.format(exc_name),
-            'errs': gen_exception_description(exc_value)
-        })
+        errs = gen_exception_description(exc_value)
+        payload = json.dumps({'code': status, 'errs': errs, 'data': None, 'call_id': call_id})
         return Response(payload, status=status, headers=headers)
