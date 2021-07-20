@@ -13,7 +13,6 @@ from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
 from service_green.core.green import json
 from eventlet.greenthread import GreenThread
-from service_webserver.exception import BadRequest
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exception import gen_exception_description
