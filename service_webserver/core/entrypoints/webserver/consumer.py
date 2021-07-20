@@ -82,8 +82,8 @@ class BaseReqConsumer(BaseEntrypoint):
         @param event: 事件
         @return: None
         """
-        context, excinfo, results = gt.wait()
-        event.send((context, excinfo, results))
+        context, results, excinfo = gt.wait()
+        event.send((context, results, excinfo))
 
     def handle_request(self, request) -> t.Tuple:
         """ 处理工作请求
@@ -97,8 +97,8 @@ class BaseReqConsumer(BaseEntrypoint):
         args, kwargs = (request,), request.path_group_dict
         gt = self.container.spawn_worker_thread(self, args, kwargs, worker_context, tid=tid)
         gt.link(self._link_results, event)
-        context, excinfo, results = event.wait()
-        return context, excinfo, results
+        context, results, excinfo = event.wait()
+        return context, results, excinfo
 
     def handle_result(self, context: WorkerContext, results: t.Any) -> t.Any:
         """ 处理正常结果
