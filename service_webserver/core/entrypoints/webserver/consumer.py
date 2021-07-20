@@ -48,10 +48,6 @@ class BaseReqConsumer(BaseEntrypoint):
 
         super(BaseReqConsumer, self).__init__()
 
-    def __repr__(self):
-        name = super(BaseReqConsumer, self).__repr__()
-        return f'{name} - {self.raw_url}'
-
     @AsLazyProperty
     def rule(self) -> Rule:
         """ 生成规则对象
