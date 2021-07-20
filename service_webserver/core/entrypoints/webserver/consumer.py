@@ -28,7 +28,7 @@ from .producer import ReqProducer
 class BaseReqConsumer(BaseEntrypoint):
     """ 通用请求消费者类 """
 
-    name = 'BaseConsumer'
+    name = 'BaseReqConsumer'
 
     producer = ReqProducer()
 
