@@ -197,7 +197,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         tid = f'{self}.self_handle_request'
         while not self.stopped:
             try:
-                # TODO: windows下ctrl+c事件似乎被捕捉需多次中断
+                # TODO: windows下ctrl+c发送的kill事件并不会及时调度会等待新请求时调度
                 client, addr = self.wsgi_socket.accept()
                 source_string = f'{addr[0]}:{addr[1]}'
                 target_string = f'{self.listen_host}:{self.listen_port}'

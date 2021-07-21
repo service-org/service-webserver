@@ -90,4 +90,6 @@ class ApiDocMiddleware(BaseMiddleware):
         @param start_response: 响应对象
         @return: t.Iterable[bytes]
         """
+        # start_response('200 Ok', [('Content-Type', 'application/json')])
+        # return [b'200 Ok']
         return self.wsgi_app(environ, start_response)
