@@ -7,15 +7,19 @@ from __future__ import annotations
 import typing as t
 
 
+def get_openapi_path() -> t.Tuple:
+    pass
+
+
 def gen_openapi_json(*,
-                    title: t.Text,
-                    version: t.Text,
-                    description: t.Optional[t.Text] = None,
-                    openapi_version: t.Text = '3.0.2',
-                    routers: t.Dict[t.Text, t.Any],
-                    tags: t.Optional[t.List[t.Dict[t.Text, t.Any]]] = None,
-                    servers: t.Optional[t.List[t.Dict[t.Text, t.Union[t.Text, t.Any]]]] = None
-                    ) -> t.Dict[t.Text, t.Any]:
+                       title: t.Text,
+                       version: t.Text,
+                       description: t.Optional[t.Text] = None,
+                       openapi_version: t.Text = '3.0.2',
+                       routers: t.Dict[t.Text, t.Any],
+                       tags: t.Optional[t.List[t.Dict[t.Text, t.Any]]] = None,
+                       servers: t.Optional[t.List[t.Dict[t.Text, t.Union[t.Text, t.Any]]]] = None
+                       ) -> t.Dict[t.Text, t.Any]:
     """ 生成 OpenAPI Specification
 
     @param title: Api文档标题

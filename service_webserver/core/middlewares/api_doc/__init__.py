@@ -76,12 +76,13 @@ class ApiDocMiddleware(BaseMiddleware):
         return self._description or self.producer.container.service.desc
 
     @AsLazyProperty
-    def routers(self) -> t.Dict[t.Text, t.Callable]:
+    def routes(self) -> t.Dict[t.Text, t.Callable]:
         """ 已注册路由表
 
         @return: t.Dict[t.Text, t.Callable]
         """
-        return self.producer.container.service.router_mapping
+        pass
+        # return self.producer.container.service.router_mapping
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
