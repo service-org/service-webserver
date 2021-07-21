@@ -7,7 +7,6 @@ from __future__ import annotations
 import typing as t
 import werkzeug.exceptions
 from werkzeug.wrappers import Request
-from werkzeug.wrappers import Response
 
 if t.TYPE_CHECKING:
     from werkzeug.wrappers.response import StartResponse
@@ -30,12 +29,12 @@ class WsgiApp(object):
         self.producer = producer
         self.urls_map = producer.create_urls_map()
 
-    def wsgi_app(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
+    def wsgi_app(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
 
         @param environ: 环境对象
         @param start_response: 响应对象
-        @return: t.Any
+        @return: t.Iterable[bytes]
         """
         request = Request(environ)
         adapter = self.urls_map.bind_to_environ(environ)
@@ -52,11 +51,11 @@ class WsgiApp(object):
             # 注意: HTTPException其实也是一个Response
             return response(environ, start_response)
 
-    def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Any:
+    def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
 
         @param environ: 环境对象
         @param start_response: 响应对象
-        @return: t.Any
+        @return: t.Iterable[bytes]
         """
         return self.wsgi_app(environ, start_response)

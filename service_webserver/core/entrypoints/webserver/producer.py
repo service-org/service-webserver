@@ -4,29 +4,29 @@
 
 from __future__ import annotations
 
-import sys
-
+import inspect
 import eventlet
 import typing as t
 
 from eventlet import wsgi
-from eventlet import support
 from eventlet import greenio
 from eventlet import wrap_ssl
 from logging import getLogger
 from eventlet.green import socket
 from greenlet import GreenletExit
 from service_core.core.decorator import AsFriendlyFunc
-from service_core.core.as_helper import get_obj_string_repr
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
 from service_core.core.service.entrypoint import BaseEntrypoint
+from service_core.core.as_finder import load_dot_path_colon_obj
+from service_webserver.core.middlewares.base import BaseMiddleware
 from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
 
 if t.TYPE_CHECKING:
     from werkzeug.routing import Map
     from eventlet.wsgi import Server
+    from werkzeug.wsgi import WSGIApplication
     from eventlet.greenthread import GreenThread
     from eventlet.greenio.base import GreenSocket
 
@@ -64,6 +64,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         self.map_options = {}
         # 相关配置 - 最大连接
         self.max_connect = None
+        self.middlewares = {}
         BaseEntrypoint.__init__(self, *args, **kwargs)
         ShareExtension.__init__(self, *args, **kwargs)
         StoreExtension.__init__(self, *args, **kwargs)
@@ -75,6 +76,8 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         """
         self.listen_host = self.container.service.host
         self.listen_port = self.container.service.port
+        middlewares = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.middlewares', default={})
+        self.middlewares = middlewares | self.middlewares
         map_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_options', default={})
         self.map_options = map_options | self.map_options
         max_connect = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.max_connect', default=None)
@@ -130,12 +133,38 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         """
         return Map([e.rule for e in self.all_extensions], **self.map_options)
 
-    def create_wsgi_app(self) -> t.Callable:
+    def setup_middlewares(self, wsgi_app: WSGIApplication) -> WSGIApplication:
+        """ 载入配置文件中的中间件
+
+        @param wsgi_app: 应用程序
+        @return: WSGIApplication
+        """
+        middlewares = {(m, load_dot_path_colon_obj(m)): c for m, c in self.middlewares.items()}
+        for (mid, result), kwargs in middlewares.items():
+            err, obj = result
+            err_prefix_message = f'load {mid} failed,'
+            if err is not None or obj is None:
+                logger.error(err_prefix_message + err)
+                continue
+            if not inspect.isclass(obj):
+                err = 'no subclass of BaseMiddleware'
+                logger.error(err_prefix_message + err)
+                continue
+            if not issubclass(obj, BaseMiddleware):
+                err = 'no subclass of BaseMiddleware'
+                logger.error(err_prefix_message + err)
+                continue
+            logger.debug(f'load {mid} succ')
+            wsgi_app = obj(wsgi_app=wsgi_app, **kwargs)
+        return wsgi_app
+
+    def create_wsgi_app(self) -> WSGIApplication:
         """ 创建一个wsgi application
 
         @return: t.Callable
         """
-        return WsgiApp(self).wsgi_app
+        wsgi_app = WsgiApp(self).wsgi_app
+        return self.setup_middlewares(wsgi_app)
 
     def create_wsgi_server(self) -> Server:
         """ 创建一个wsgi server
@@ -177,13 +206,15 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                 args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
                 gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
                 gt.link(self._link_cleanup_connection, self.connections[addr])
+            except (KeyboardInterrupt, SystemExit, GreenletExit):
+                break
             except:
                 logger.error(f'unexpected error while accept connect', exc_info=True)
         for connection in self.connections.values():
             prev_state = connection[2]
             connection[2] = wsgi.STATE_CLOSE
             (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
-        logger.debug(f'good bey ~')
+        logger.debug(f'wsgi exited, is_accepting={not self.stopped}')
 
     def handle_request(self, addr: t.Tuple, client: GreenSocket, state: t.Text) -> None:
         """ 通过server调用app处理
