@@ -141,7 +141,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
         """
         middlewares = {(m, load_dot_path_colon_obj(m)): c for m, c in self.middlewares.items()}
         for (mid, result), kwargs in middlewares.items():
-            err, obj = result
+            (err, obj), kwargs = result, kwargs or {}
             err_prefix_message = f'load {mid} failed,'
             if err is not None or obj is None:
                 logger.error(err_prefix_message + err)
@@ -155,7 +155,7 @@ class ReqProducer(BaseEntrypoint, ShareExtension, StoreExtension):
                 logger.error(err_prefix_message + err)
                 continue
             logger.debug(f'load {mid} succ')
-            wsgi_app = obj(wsgi_app=wsgi_app, **kwargs)
+            wsgi_app = obj(wsgi_app=wsgi_app, producer=self, **kwargs)
         return wsgi_app
 
     def create_wsgi_app(self) -> WSGIApplication:

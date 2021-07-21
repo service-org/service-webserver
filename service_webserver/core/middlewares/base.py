@@ -10,18 +10,24 @@ if t.TYPE_CHECKING:
     from werkzeug.wsgi import WSGIApplication
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
+    from service_core.core.service.entrypoint import BaseEntrypoint
+
+    # 入口类型
+    Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
 
 
 class BaseMiddleware(object):
     """ 中间件基类 """
 
-    def __init__(self, *, wsgi_app: WSGIApplication, **kwargs: t.Any) -> None:
+    def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:
         """ 初始化实例
 
         @param wsgi_app: 应用程序
+        @param producer: 服务提供者
         @param kwargs: 命名参数
         """
         self.wsgi_app = wsgi_app
+        self.producer = producer
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
