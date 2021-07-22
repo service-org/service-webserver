@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import typing as t
 
+from werkzeug.wrappers import Request
 from pkg_resources import get_distribution
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.middlewares.base import BaseMiddleware
@@ -18,6 +19,10 @@ if t.TYPE_CHECKING:
 
     # 入口类型
     Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
+
+from .redoc import get_redoc_payload
+from .swagger import get_swagger_payload
+from .openapi import get_openapi_payload
 
 server = get_distribution('service-webserver')
 
@@ -94,6 +99,20 @@ class OpenApiDocMiddleware(BaseMiddleware):
         @param start_response: 响应对象
         @return: t.Iterable[bytes]
         """
-        # start_response('200 Ok', [('Content-Type', 'application/json')])
-        # return [b'200 Ok']
+        request = Request(environ)
+        if request.path == self.openapi_url:
+            headers = [('Content-Type', 'application/json')]
+            start_response('200 Ok', headers)
+            response_data = get_openapi_payload()
+            return [response_data]
+        if request.path == self.swagger_url:
+            headers = [('Content-Type', 'text/html')]
+            start_response('200 Ok', headers)
+            response_data = get_swagger_payload()
+            return [response_data]
+        if request.path == self.redoc_url:
+            headers = [('Content-Type', 'text/html')]
+            start_response('200 Ok', headers)
+            response_data = get_redoc_payload()
+            return [response_data]
         return self.wsgi_app(environ, start_response)
