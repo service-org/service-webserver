@@ -58,37 +58,67 @@ class BaseReqConsumer(BaseEntrypoint):
         @param response_model: 响应模型
         @param options: 其它的配置选项
         """
-        # 相关配置 - 头部映射
+        # 头部映射 - 转换头部
         self.headmap = {}
+
+        # 路由配置 - 地址方法
         self.raw_url = raw_url
         self.methods = methods
         self.options = options
-        self.deprecated = deprecated
 
-        if self.tags:
-            self.tags = tags
-        else:
-            self.tags = []
-        if summary:
-            self.summary = summary
-        else:
-            self.summary = self.object_name
-        if description:
-            self.description = description
-        else:
-            self.description = self.__doc__
-        if self.operation_id:
-            self.operation_id = operation_id
-        else:
-            n = self.object_name.rsplit('.', 1)
-            self.operation_id = n[-1]
-        self.response_class = response_class
+        # Doc配置 - OpenApi
+        self.deprecated = deprecated
+        self._tags = tags
+        self._summary = summary
+        self._description = description
+        self._operation_id = operation_id
         self.response_model = response_model
+
+        # 响应配置 - 构造响应
+        self.response_class = response_class
         super(BaseReqConsumer, self).__init__()
 
     def __repr__(self) -> t.Text:
         name = super(BaseReqConsumer, self).__repr__()
         return f'{name} - {self.raw_url}'
+
+    @AsLazyProperty
+    def tags(self) -> t.List:
+        """ 获取聚合标签
+
+        @return: t.List
+        """
+        return self._tags or []
+
+    @AsLazyProperty
+    def summary(self) -> t.Text:
+        """ 获取接口简介
+
+        @return: t.Text
+        """
+        return self._summary or self.object_name
+
+    @AsLazyProperty
+    def description(self) -> t.Text:
+        """ 获取接口描述
+
+        @return: t.Text
+        """
+        if self._description:
+            return self._description
+        fn_name = self.object_name
+        service = self.container.service
+        mapping = service.router_mapping
+        return mapping[fn_name].__doc__
+
+    @AsLazyProperty
+    def operation_id(self) -> t.Text:
+        """ 获取操作标识
+
+        @return: t.Text
+        """
+        fn_name = self.object_name
+        return fn_name.rsplit('.', 1)[-1]
 
     @AsLazyProperty
     def rule(self) -> Rule:
