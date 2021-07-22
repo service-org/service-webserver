@@ -22,28 +22,31 @@ if t.TYPE_CHECKING:
 server = get_distribution('service-webserver')
 
 
-class ApiDocMiddleware(BaseMiddleware):
-    """ Api doc 中间件类 """
+class OpenApiDocMiddleware(BaseMiddleware):
+    """ OpenApi doc 中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
                  title: t.Text = '', description: t.Text = '',
                  version: t.Text = server.version,
-                 openapi_version: t.Text = '3.0.2',
+                 openapi_version: t.Text = '3.0.3',
                  openapi_url: t.Optional[t.Text] = '/openapi.json',
-                 openapi_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
+                 api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
                  redoc_url: t.Optional[t.Text] = '/redoc',
                  swagger_url: t.Optional[t.Text] = '/swagger',
-                 servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None,
+                 servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None
                  ) -> None:
         """ 初始化实例
 
-        @param wsgi_app: 请求处理函数
-        @param title: Api文档标题
+        doc: https://www.jianshu.com/p/5365ef83252a
+
+        @param wsgi_app: Wsgi应用处理器
+        @param producer: 服务真正提供者
+        @param title: Api文档的标题
         @param description: Api文档描述
-        @param version: Api文档版本
+        @param version: Api文档的版本
         @param openapi_version: OpenApi版本
         @param openapi_url: OpenApi接口地址
-        @param openapi_tags: OpenApi聚合标签
+        @param api_tags: Api用于分组的标签
         @param redoc_url: redoc文档的url地址
         @param swagger_url: swagger文档地址
         @param servers: 下拉选择的目标服务器
@@ -53,11 +56,11 @@ class ApiDocMiddleware(BaseMiddleware):
         self.version = version
         self.openapi_version = openapi_version
         self.openapi_url = openapi_url
-        self.openapi_tags = openapi_tags or []
+        self.api_tags = api_tags or []
         self.redoc_url = redoc_url
         self.swagger_url = swagger_url
         self.servers = servers or []
-        super(ApiDocMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
+        super(OpenApiDocMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
 
     @AsLazyProperty
     def title(self) -> t.Text:
