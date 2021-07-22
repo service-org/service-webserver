@@ -14,6 +14,8 @@ from werkzeug.wrappers import Response
 from service_green.core.green import json
 from eventlet.greenthread import GreenThread
 from service_core.core.decorator import AsLazyProperty
+from service_webserver.core.response import JsonResponse
+from service_webserver.core.response import HtmlResponse
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exception import gen_exception_description
 from service_core.core.service.entrypoint import BaseEntrypoint
@@ -32,20 +34,56 @@ class BaseReqConsumer(BaseEntrypoint):
 
     producer = ReqProducer()
 
-    def __init__(self, raw_url: t.Text, methods: t.Tuple = ('GET',), **options) -> None:
+    def __init__(self,
+                 raw_url: t.Text,
+                 methods: t.Tuple = ('GET',),
+                 tags: t.Optional[t.List] = None,
+                 summary: t.Optional[t.Text] = None,
+                 description: t.Optional[t.Text] = None,
+                 deprecated: t.Optional[bool] = False,
+                 operation_id: t.Optional[t.Text] = None,
+                 response_class: t.Type[Response] = None,
+                 response_model: t.Optional[t.Type[t.Any]] = None,
+                 **options) -> None:
         """ 初始化实例
 
-        @param raw_url: 规则字符
-        @param methods: 请求方法
-        @param options: 规则选项
+        @param raw_url: 原始url
+        @param methods: 请求方法列表
+        @param tags: OpenApi聚合标签列表
+        @param summary: OpenApi接口简介
+        @param description: OpenApi接口描述
+        @param deprecated: OpenApi废弃标识
+        @param operation_id: OpenApi操作标识
+        @param response_class: 指定特定响应类
+        @param response_model: 响应模型
+        @param options: 其它的配置选项
         """
         # 相关配置 - 头部映射
         self.headmap = {}
-
         self.raw_url = raw_url
         self.methods = methods
         self.options = options
+        self.deprecated = deprecated
 
+        if self.tags:
+            self.tags = tags
+        else:
+            self.tags = []
+        if summary:
+            self.summary = summary
+        else:
+            self.summary = self.object_name
+        if description:
+            self.description = description
+        else:
+            self.description = self.__doc__
+        if self.operation_id:
+            self.operation_id = operation_id
+        else:
+            n = self.object_name.rsplit('.', 1)
+            self.operation_id = n[-1]
+        self.response_class = response_class
+        self.response_model = response_model
         super(BaseReqConsumer, self).__init__()
 
     def __repr__(self) -> t.Text:
@@ -128,6 +166,15 @@ class WebReqConsumer(BaseReqConsumer):
 
     name = 'WebReqConsumer'
 
+    def __init__(self, *args, **kwargs) -> None:
+        """ 初始化实例
+
+        @param args  : 位置参数
+        @param kwargs: 命名参数
+        """
+        super(WebReqConsumer, self).__init__(*args, **kwargs)
+        self.response_class = self.response_class or HtmlResponse
+
     def handle_request(self, request) -> t.Tuple:
         """ 处理工作请求
 
@@ -160,7 +207,8 @@ class WebReqConsumer(BaseReqConsumer):
                 payload, headers, status = results
             else:
                 payload, status = results
-        return Response(payload, status=status, headers=headers)
+        response_class = self.response_class or HtmlResponse
+        return response_class(payload, status=status, headers=headers)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
         """ 处理异常结果
@@ -185,13 +233,23 @@ class WebReqConsumer(BaseReqConsumer):
             f'<h1>{data["exc_type"]}</h1>'
             f'<p>from {original}{data["exc_errs"]}</p>'
         )
-        return Response(payload, status=status, headers=headers)
+        response_class = self.response_class or HtmlResponse
+        return response_class(payload, status=status, headers=headers)
 
 
 class ApiReqConsumer(BaseReqConsumer):
     """ API请求消费者类 """
 
     name = 'ApiReqConsumer'
+
+    def __init__(self, *args, **kwargs) -> None:
+        """ 初始化实例
+
+        @param args  : 位置参数
+        @param kwargs: 命名参数
+        """
+        super(ApiReqConsumer, self).__init__(*args, **kwargs)
+        self.response_class = self.response_class or JsonResponse
 
     def handle_request(self, request) -> t.Tuple:
         """ 处理工作请求
@@ -217,7 +275,8 @@ class ApiReqConsumer(BaseReqConsumer):
         headers = {'Content-Type': 'application/json'}
         errs, call_id = None, context.worker_request_id
         payload = json.dumps({'code': status, 'errs': None, 'data': results, 'call_id': call_id})
-        return Response(payload, status=status, headers=headers)
+        response_class = self.response_class or JsonResponse
+        return response_class(payload, status=status, headers=headers)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
         """ 处理异常结果
@@ -236,4 +295,5 @@ class ApiReqConsumer(BaseReqConsumer):
         data, call_id = None, context.worker_request_id
         errs = gen_exception_description(exc_value)
         payload = json.dumps({'code': status, 'errs': errs, 'data': None, 'call_id': call_id})
-        return Response(payload, status=status, headers=headers)
+        response_class = self.response_class or JsonResponse
+        return response_class(payload, status=status, headers=headers)
