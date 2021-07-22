@@ -81,7 +81,7 @@ class JsonResponse(BaseResponse):
         @param direct_passthrough: 是否以流式直传?
         """
         response = json.dumps(response)
-        super(BaseResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
+        super(JsonResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
 class PlainTextResponse(BaseResponse):

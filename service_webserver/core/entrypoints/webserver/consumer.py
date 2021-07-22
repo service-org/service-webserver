@@ -11,7 +11,6 @@ from eventlet.green import http
 from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
-from service_green.core.green import json
 from eventlet.greenthread import GreenThread
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
@@ -22,7 +21,11 @@ from service_core.core.service.entrypoint import BaseEntrypoint
 from service_webserver.core.context import from_headers_to_context
 
 if t.TYPE_CHECKING:
+    from eventlet.green.http import HTTPStatus
     from service_core.core.context import WorkerContext
+
+    # 响应状态
+    HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
 
 from .producer import ReqProducer
 
@@ -147,6 +150,24 @@ class BaseReqConsumer(BaseEntrypoint):
         self.producer.del_extension(self)
 
     @staticmethod
+    def _gen_response(results: t.Any) -> t.Tuple[t.Any, t.Dict, HttpStatus]:
+        """ 生成响应数据
+
+        @param results: 结果对象
+        @return: t.Tuple[t.Any, t.Dict, HttpStatus]
+        """
+        headers = None
+        status = http.HTTPStatus.OK.value
+        if not isinstance(results, tuple):
+            payload = results
+        else:
+            if len(results) == 3:
+                payload, headers, status = results
+            else:
+                payload, status = results
+        return payload, headers, status
+
+    @staticmethod
     def _link_results(gt: GreenThread, event: Event) -> None:
         """ 连接执行结果
 
@@ -225,18 +246,8 @@ class WebReqConsumer(BaseReqConsumer):
         @param results: 结果对象
         @return: t.Any
         """
-        if isinstance(results, Response):
-            return results
-        else:
-            headers = None
-            status = http.HTTPStatus.OK.value
-        if not isinstance(results, tuple):
-            payload = results
-        else:
-            if len(results) == 3:
-                payload, headers, status = results
-            else:
-                payload, status = results
+        if isinstance(results, Response): return results
+        payload, headers, status = self._gen_response(results)
         response_class = self.response_class or HtmlResponse
         return response_class(payload, status=status, headers=headers)
 
@@ -253,7 +264,6 @@ class WebReqConsumer(BaseReqConsumer):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
             status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
-        headers = {'Content-Type': 'text/html; charset=utf-8'}
         data = gen_exception_description(exc_value)
         original = data['original']
         original = f'{original} -' if original else original
@@ -264,7 +274,7 @@ class WebReqConsumer(BaseReqConsumer):
             f'<p>from {original}{data["exc_errs"]}</p>'
         )
         response_class = self.response_class or HtmlResponse
-        return response_class(payload, status=status, headers=headers)
+        return response_class(payload, status=status)
 
 
 class ApiReqConsumer(BaseReqConsumer):
@@ -301,9 +311,10 @@ class ApiReqConsumer(BaseReqConsumer):
         @param results: 结果对象
         @return: t.Any
         """
-        status = http.HTTPStatus.OK.value
+        if isinstance(results, Response): return results
+        payload, headers, status = self._gen_response(results)
         errs, call_id = None, context.worker_request_id
-        payload = {'code': status, 'errs': None, 'data': results, 'call_id': call_id}
+        payload = {'code': status, 'errs': None, 'data': payload, 'call_id': call_id}
         response_class = self.response_class or JsonResponse
         return response_class(payload, status=status)
 
