@@ -55,8 +55,8 @@ class BaseReqConsumer(BaseEntrypoint):
         @param deprecated: OpenApi废弃标识
         @param operation_id: OpenApi操作标识
         @param response_class: 指定特定响应类
-        @param response_model: 响应模型
-        @param options: 其它的配置选项
+        @param response_model: 响应的验证模型
+        @param options: 其它的相关配置选项
         """
         # 头部映射 - 转换头部
         self.headmap = {}
