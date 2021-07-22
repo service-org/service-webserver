@@ -302,11 +302,10 @@ class ApiReqConsumer(BaseReqConsumer):
         @return: t.Any
         """
         status = http.HTTPStatus.OK.value
-        headers = {'Content-Type': 'application/json'}
         errs, call_id = None, context.worker_request_id
-        payload = json.dumps({'code': status, 'errs': None, 'data': results, 'call_id': call_id})
+        payload = {'code': status, 'errs': None, 'data': results, 'call_id': call_id}
         response_class = self.response_class or JsonResponse
-        return response_class(payload, status=status, headers=headers)
+        return response_class(payload, status=status)
 
     def handle_errors(self, context: WorkerContext, excinfo: t.Tuple) -> t.Any:
         """ 处理异常结果
@@ -321,9 +320,8 @@ class ApiReqConsumer(BaseReqConsumer):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
             status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
-        headers = {'Content-Type': 'application/json'}
         data, call_id = None, context.worker_request_id
         errs = gen_exception_description(exc_value)
-        payload = json.dumps({'code': status, 'errs': errs, 'data': None, 'call_id': call_id})
+        payload = {'code': status, 'errs': errs, 'data': None, 'call_id': call_id}
         response_class = self.response_class or JsonResponse
-        return response_class(payload, status=status, headers=headers)
+        return response_class(payload, status=status)
