@@ -8,7 +8,6 @@ import typing as t
 
 from collections import namedtuple
 from werkzeug.wrappers import Request
-from pkg_resources import get_distribution
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.middlewares.base import BaseMiddleware
 
@@ -25,7 +24,6 @@ from .redoc import get_redoc_payload
 from .swagger import get_swagger_payload
 from .openapi import get_openapi_payload
 
-server = get_distribution('service-webserver')
 Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
 
 
@@ -34,7 +32,7 @@ class OpenApiDocMiddleware(BaseMiddleware):
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
                  title: t.Text = '', description: t.Text = '',
-                 version: t.Text = server.version,
+                 version: t.Text = '0.0.1',
                  openapi_version: t.Text = '3.0.3',
                  openapi_url: t.Optional[t.Text] = '/openapi.json',
                  api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
@@ -104,6 +102,37 @@ class OpenApiDocMiddleware(BaseMiddleware):
             collect_routers.append(router)
         return collect_routers
 
+    @AsLazyProperty
+    def redoc_payload(self) -> t.Text:
+        """ redoc响应载体
+
+        @return: t.Text
+        """
+        return get_redoc_payload()
+
+    @AsLazyProperty
+    def swagger_payload(self) -> t.Text:
+        """ swagger响应载体
+
+        @return: t.Text
+        """
+        return get_swagger_payload()
+
+    @AsLazyProperty
+    def openapi_payload(self) -> t.Text:
+        """ OpenApi响应载体
+
+        @return: t.Text
+        """
+        kwargs = {'title': self.title,
+                  'routers': self.routes,
+                  'version': self.version,
+                  'servers': self.servers,
+                  'api_tags': self.api_tags,
+                  'description': self.description,
+                  'openapi_version': self.openapi_version}
+        return get_openapi_payload(**kwargs)
+
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
 
@@ -114,11 +143,11 @@ class OpenApiDocMiddleware(BaseMiddleware):
         request = Request(environ)
         if request.path == self.redoc_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
-            return [get_redoc_payload()]
+            return [self.redoc_payload]
         if request.path == self.swagger_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
-            return [get_swagger_payload()]
+            return [self.swagger_payload]
         if request.path == self.openapi_url:
             start_response('200 Ok', [('Content-Type', 'application/json')])
-            return [get_openapi_payload()]
+            return [self.openapi_payload]
         return self.wsgi_app(environ, start_response)

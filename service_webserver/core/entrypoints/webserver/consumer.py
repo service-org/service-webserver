@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import re
 import typing as t
 import werkzeug.exceptions
 
@@ -47,6 +48,7 @@ class BaseReqConsumer(BaseEntrypoint):
                  operation_id: t.Optional[t.Text] = None,
                  response_class: t.Type[Response] = None,
                  response_model: t.Optional[t.Type[t.Any]] = None,
+                 include_in_doc: t.Optional[bool] = True,
                  **options) -> None:
         """ 初始化实例
 
@@ -59,6 +61,7 @@ class BaseReqConsumer(BaseEntrypoint):
         @param operation_id: OpenApi操作标识
         @param response_class: 指定特定响应类
         @param response_model: 响应的验证模型
+        @param include_in_doc: 是否暴露在文档
         @param options: 其它的相关配置选项
         """
         # Doc配置 - 基于OpenApi的文档
@@ -68,6 +71,7 @@ class BaseReqConsumer(BaseEntrypoint):
         self._operation_id = operation_id
         self.deprecated = deprecated
         self.response_model = response_model
+        self.include_in_doc = include_in_doc
         # 头部映射 - 兼容不同Trace头部
         self.map_headers = {}
         # 路由配置 - 基本的路由相关配置
@@ -81,6 +85,15 @@ class BaseReqConsumer(BaseEntrypoint):
     def __repr__(self) -> t.Text:
         name = super(BaseReqConsumer, self).__repr__()
         return f'{name} - {self.raw_url}'
+
+    @AsLazyProperty
+    def path(self) -> t.Text:
+        """ 获取标准路径
+
+        @return: t.Text
+        """
+        repl = lambda m: '{' + m.group(1) + '}'
+        return re.sub(r'<[^:>]*:([^>]*)>', repl, self.raw_url)
 
     @AsLazyProperty
     def tags(self) -> t.List:
@@ -117,8 +130,8 @@ class BaseReqConsumer(BaseEntrypoint):
 
         @return: t.Text
         """
-        fn_name = self.object_name
-        return fn_name.rsplit('.', 1)[-1]
+        name = self.summary.rsplit('.', 1)[-1]
+        return re.sub(r'[^0-9a-zA-Z_]', '_', name + self.path)
 
     @AsLazyProperty
     def rule(self) -> Rule:
