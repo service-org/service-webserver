@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import typing as t
 
-from werkzeug.middleware.shared_data import SharedDataMiddleware
+from werkzeug.middleware.shared_data import SharedDataMiddleware as BaseSharedDataMiddleware
 
 if t.TYPE_CHECKING:
     from werkzeug.wsgi import WSGIApplication
@@ -18,7 +18,7 @@ if t.TYPE_CHECKING:
 from .base import BaseMiddleware
 
 
-class ShareDataMiddleware(SharedDataMiddleware, BaseMiddleware):
+class ShareDataMiddleware(BaseSharedDataMiddleware, BaseMiddleware):
     """ 静态文件中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:
@@ -28,5 +28,5 @@ class ShareDataMiddleware(SharedDataMiddleware, BaseMiddleware):
         @param producer: 服务提供者
         @param kwargs: 命名参数
         """
-        SharedDataMiddleware.__init__(self, wsgi_app, **kwargs)
+        BaseSharedDataMiddleware.__init__(self, wsgi_app, **kwargs)
         BaseMiddleware.__init__(self, wsgi_app=wsgi_app, producer=producer)
