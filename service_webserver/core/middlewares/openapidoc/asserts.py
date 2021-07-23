@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
-import typing as t
-
-__all__ = ['get_redoc_payload']
-
 
 def get_redoc_payload():
     """ 获取redoc载体 """
     return '/redoc'
+
+
+def get_swagger_payload():
+    """ 获取swagger载体 """
+    return '/swagger'

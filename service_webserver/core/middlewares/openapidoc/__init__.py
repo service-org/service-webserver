@@ -20,8 +20,8 @@ if t.TYPE_CHECKING:
     # 入口类型
     Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
 
-from .redoc import get_redoc_payload
-from .swagger import get_swagger_payload
+from .asserts import get_redoc_payload
+from .asserts import get_swagger_payload
 from .openapi import get_openapi_payload
 
 Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
