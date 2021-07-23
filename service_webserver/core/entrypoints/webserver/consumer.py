@@ -61,23 +61,20 @@ class BaseReqConsumer(BaseEntrypoint):
         @param response_model: 响应的验证模型
         @param options: 其它的相关配置选项
         """
-        # 头部映射 - 转换头部
-        self.headmap = {}
-
-        # 路由配置 - 地址方法
-        self.raw_url = raw_url
-        self.methods = methods
-        self.options = options
-
-        # Doc配置 - OpenApi
-        self.deprecated = deprecated
+        # Doc配置 - 基于OpenApi的文档
         self._tags = tags
         self._summary = summary
         self._description = description
         self._operation_id = operation_id
+        self.deprecated = deprecated
         self.response_model = response_model
-
-        # 响应配置 - 构造响应
+        # 头部映射 - 兼容不同Trace头部
+        self.map_headers = {}
+        # 路由配置 - 基本的路由相关配置
+        self.raw_url = raw_url
+        self.methods = methods
+        self.options = options
+        # 响应配置 - 基于响应模型构建响应
         self.response_class = response_class
         super(BaseReqConsumer, self).__init__()
 
@@ -140,7 +137,7 @@ class BaseReqConsumer(BaseEntrypoint):
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})
-        self.headmap = map_headers | self.headmap
+        self.map_headers = map_headers | self.map_headers
 
     def stop(self) -> None:
         """ 生命周期 - 停止阶段

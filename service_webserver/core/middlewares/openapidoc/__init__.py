@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import typing as t
 
+from collections import namedtuple
 from werkzeug.wrappers import Request
 from pkg_resources import get_distribution
 from service_core.core.decorator import AsLazyProperty
@@ -25,6 +26,7 @@ from .swagger import get_swagger_payload
 from .openapi import get_openapi_payload
 
 server = get_distribution('service-webserver')
+Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
 
 
 class OpenApiDocMiddleware(BaseMiddleware):
@@ -84,13 +86,23 @@ class OpenApiDocMiddleware(BaseMiddleware):
         return self._description or self.producer.container.service.desc
 
     @AsLazyProperty
-    def routes(self) -> t.Dict[t.Text, t.Callable]:
+    def routes(self) -> t.List[Router]:
         """ 已注册路由表
 
         @return: t.Dict[t.Text, t.Callable]
         """
-        pass
-        # return self.producer.container.service.router_mapping
+        collect_routers = []
+        service = self.producer.container.service
+        mapping = service.router_mapping
+        all_ext = self.producer.all_extensions
+        for ext in all_ext:
+            ident = ext.object_name
+            if ident not in mapping:
+                continue
+            target = mapping[ident]
+            router = Router(ident, ext, target)
+            collect_routers.append(router)
+        return collect_routers
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
@@ -100,19 +112,13 @@ class OpenApiDocMiddleware(BaseMiddleware):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
-        if request.path == self.openapi_url:
-            headers = [('Content-Type', 'application/json')]
-            start_response('200 Ok', headers)
-            response_data = get_openapi_payload()
-            return [response_data]
-        if request.path == self.swagger_url:
-            headers = [('Content-Type', 'text/html')]
-            start_response('200 Ok', headers)
-            response_data = get_swagger_payload()
-            return [response_data]
         if request.path == self.redoc_url:
-            headers = [('Content-Type', 'text/html')]
-            start_response('200 Ok', headers)
-            response_data = get_redoc_payload()
-            return [response_data]
+            start_response('200 Ok', [('Content-Type', 'text/html')])
+            return [get_redoc_payload()]
+        if request.path == self.swagger_url:
+            start_response('200 Ok', [('Content-Type', 'text/html')])
+            return [get_swagger_payload()]
+        if request.path == self.openapi_url:
+            start_response('200 Ok', [('Content-Type', 'application/json')])
+            return [get_openapi_payload()]
         return self.wsgi_app(environ, start_response)
