@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import inspect
 import typing as t
 import werkzeug.exceptions
 
@@ -19,14 +20,18 @@ from service_webserver.core.response import HtmlResponse
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exception import gen_exception_description
 from service_core.core.service.entrypoint import BaseEntrypoint
+from service_webserver.core.openapi3 import create_response_field
 from service_webserver.core.context import from_headers_to_context
 
 if t.TYPE_CHECKING:
+    from pydantic.fields import ModelField
     from eventlet.green.http import HTTPStatus
     from service_core.core.context import WorkerContext
 
     # 响应状态
     HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
+
+from pydantic.fields import ModelField
 
 from .producer import ReqProducer
 
@@ -43,12 +48,15 @@ class BaseReqConsumer(BaseEntrypoint):
                  methods: t.Tuple = ('GET',),
                  tags: t.Optional[t.List] = None,
                  summary: t.Optional[t.Text] = None,
+                 status_code: t.Optional[int] = None,
                  description: t.Optional[t.Text] = None,
                  deprecated: t.Optional[bool] = False,
                  operation_id: t.Optional[t.Text] = None,
                  response_class: t.Type[Response] = None,
+                 response_description: str = 'Successful Response',
                  response_model: t.Optional[t.Type[t.Any]] = None,
                  include_in_doc: t.Optional[bool] = True,
+                 other_response: t.Optional[t.Dict[t.Union[int, str], t.Dict[str, t.Any]]] = None,
                  **options) -> None:
         """ 初始化实例
 
@@ -64,22 +72,32 @@ class BaseReqConsumer(BaseEntrypoint):
         @param include_in_doc: 是否暴露在文档
         @param options: 其它的相关配置选项
         """
-        # Doc配置 - 基于OpenApi的文档
+        # 头部映射 - 兼容不同Trace头部
+        self.map_headers = {}
+        # 路由配置 - 基本的路由相关配置
+        methods = {m.upper() for m in methods}
+        self.raw_url = raw_url
+        self.methods = methods
+        self.options = options
+        # 响应配置 - 指定响应类构建响应
+        self.response_class = response_class
+        # Doc配置 - 构建OpenApi的文档
         self._tags = tags
         self._summary = summary
         self._description = description
         self._operation_id = operation_id
         self.deprecated = deprecated
+        self.status_code = status_code
+        self.other_response = other_response or {}
         self.response_model = response_model
         self.include_in_doc = include_in_doc
-        # 头部映射 - 兼容不同Trace头部
-        self.map_headers = {}
-        # 路由配置 - 基本的路由相关配置
-        self.raw_url = raw_url
-        self.methods = methods
-        self.options = options
-        # 响应配置 - 基于响应模型构建响应
-        self.response_class = response_class
+        self.response_description = response_description
+        self.response_fields = {}
+        for status, response in self.other_response.items():
+            model = response.get('model')
+            name = f'Response_{status}_{self.operation_id}'
+            field = create_response_field(name=name, type_=model)
+            self.response_fields[status_code] = field
         super(BaseReqConsumer, self).__init__()
 
     def __repr__(self) -> t.Text:
@@ -97,7 +115,7 @@ class BaseReqConsumer(BaseEntrypoint):
 
     @AsLazyProperty
     def tags(self) -> t.List:
-        """ 获取聚合标签
+        """ 获取分组标签
 
         @return: t.List
         """
@@ -122,7 +140,8 @@ class BaseReqConsumer(BaseEntrypoint):
         fn_name = self.object_name
         service = self.container.service
         mapping = service.router_mapping
-        return mapping[fn_name].__doc__
+        source = mapping[fn_name].__doc__
+        return inspect.getdoc(source)
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
@@ -132,6 +151,22 @@ class BaseReqConsumer(BaseEntrypoint):
         """
         name = self.summary.rsplit('.', 1)[-1]
         return re.sub(r'[^0-9a-zA-Z_]', '_', name + self.path)
+
+    @AsLazyProperty
+    def response_name(self) -> t.Text:
+        """ 生成响应名称
+
+        @return: t.Text
+        """
+        return f'Response_{self.operation_id}'
+
+    @AsLazyProperty
+    def response_field(self) -> ModelField:
+        """ 获取响应字段
+
+        @return: t.Optional[ModelField]
+        """
+        return create_response_field(name=self.response_name, type_=self.response_model)
 
     @AsLazyProperty
     def rule(self) -> Rule:
