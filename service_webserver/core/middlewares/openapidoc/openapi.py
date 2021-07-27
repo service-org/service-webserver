@@ -84,5 +84,3 @@ def get_openapi_payload(title: t.Text,
     components: t.Dict[t.Text, t.Dict[t.Text, t.Any]] = {}
     # https://swagger.io/specification/#paths-object
     paths: t.Dict[t.Text, t.Dict[t.Text, t.Any]] = {}
-    for router in routers:
-        result =

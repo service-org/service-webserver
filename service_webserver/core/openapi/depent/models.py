@@ -15,6 +15,7 @@ class Dependant(object):
     def __init__(self, *,
                  name: t.Optional[str] = None,
                  path: t.Optional[str] = None,
+                 call: t.Optional[t.Callable[..., t.Any]] = None,
                  path_params: t.Optional[t.List[ModelField]] = None,
                  query_params: t.Optional[t.List[ModelField]] = None,
                  header_params: t.Optional[t.List[ModelField]] = None,
@@ -23,11 +24,10 @@ class Dependant(object):
                  dependencies: t.Optional[t.List[Dependant]] = None,
                  request_param_name: t.Optional[t.Text] = None,
                  response_param_name: t.Optional[t.Text] = None,
-                 use_cache: bool = True
                  ) -> None:
         self.name = name
         self.path = path
-        self.use_cache = use_cache
+        self.call = call
         self.path_params = path_params or []
         self.query_params = query_params or []
         self.header_params = header_params or []
