@@ -4,4 +4,3 @@
 
 from __future__ import annotations
 
-REF_PREFIX = '#/components/schemas/'
