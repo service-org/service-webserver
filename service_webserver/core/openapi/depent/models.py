@@ -10,21 +10,23 @@ from pydantic.fields import ModelField
 
 
 class Dependant(object):
-    """ 依赖注入通用类 """
+    """ 通用依赖注入类 """
 
-    def __init__(self, *,
-                 name: t.Optional[str] = None,
-                 path: t.Optional[str] = None,
-                 call: t.Optional[t.Callable[..., t.Any]] = None,
-                 path_params: t.Optional[t.List[ModelField]] = None,
-                 query_params: t.Optional[t.List[ModelField]] = None,
-                 header_params: t.Optional[t.List[ModelField]] = None,
-                 cookie_params: t.Optional[t.List[ModelField]] = None,
-                 body_params: t.Optional[t.List[ModelField]] = None,
-                 dependencies: t.Optional[t.List[Dependant]] = None,
-                 request_param_name: t.Optional[t.Text] = None,
-                 response_param_name: t.Optional[t.Text] = None,
-                 ) -> None:
+    def __init__(
+            self,
+            *,
+            name: t.Optional[str] = None,
+            path: t.Optional[str] = None,
+            call: t.Optional[t.Callable[..., t.Any]] = None,
+            path_params: t.Optional[t.List[ModelField]] = None,
+            query_params: t.Optional[t.List[ModelField]] = None,
+            header_params: t.Optional[t.List[ModelField]] = None,
+            cookie_params: t.Optional[t.List[ModelField]] = None,
+            body_params: t.Optional[t.List[ModelField]] = None,
+            dependencies: t.Optional[t.List[Dependant]] = None,
+            request_param_name: t.Optional[t.Text] = None,
+            response_param_name: t.Optional[t.Text] = None,
+    ) -> None:
         self.name = name
         self.path = path
         self.call = call

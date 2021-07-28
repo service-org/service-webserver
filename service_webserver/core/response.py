@@ -39,10 +39,15 @@ class BaseResponse(Response):
     json_module = json
     mimetype = 'text/plain'
 
-    def __init__(self, response: HttpResponse = None, status: HTTPStatus = None, headers: HTTPDictHeaders = None,
-                 mimetype: t.Optional[str] = None, content_type: t.Optional[str] = None,
-                 direct_passthrough: bool = False
-                 ) -> None:
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[str] = None,
+            content_type: t.Optional[str] = None,
+            direct_passthrough: bool = False
+    ) -> None:
         """ 初始化实例
 
         @param response: 响应内容
@@ -67,10 +72,15 @@ class JsonResponse(BaseResponse):
     """ JSON格式响应类 """
     mimetype = 'application/json'
 
-    def __init__(self, response: HttpResponse = None, status: HTTPStatus = None, headers: HTTPDictHeaders = None,
-                 mimetype: t.Optional[str] = None, content_type: t.Optional[str] = None,
-                 direct_passthrough: bool = False
-                 ) -> None:
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[str] = None,
+            content_type: t.Optional[str] = None,
+            direct_passthrough: bool = False
+    ) -> None:
         """ 初始化实例
 
         @param response: 响应内容
@@ -95,11 +105,16 @@ class RedirectResponse(BaseResponse):
 
     mimetype = 'text/html'
 
-    def __init__(self, location: t.Text, response: HttpResponse = None, status: HTTPStatus = None,
-                 headers: HTTPDictHeaders = None, mimetype: t.Optional[str] = None,
-                 content_type: t.Optional[str] = None,
-                 direct_passthrough: bool = False
-                 ) -> None:
+    def __init__(
+            self,
+            location: t.Text,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[t.Text] = None,
+            content_type: t.Optional[t.Text] = None,
+            direct_passthrough: bool = False
+    ) -> None:
         """ 初始化实例
 
         doc: werkzeug.utils.redirect
@@ -137,10 +152,15 @@ class StreamResponse(BaseResponse):
     buffer_size = 8192
     mimetype = 'application/octet-stream'
 
-    def __init__(self, response: HttpResponse = None, status: HTTPStatus = None, headers: HTTPDictHeaders = None,
-                 mimetype: t.Optional[str] = None, content_type: t.Optional[str] = None,
-                 direct_passthrough: bool = False
-                 ) -> None:
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[t.Text] = None,
+            content_type: t.Optional[t.Text] = None,
+            direct_passthrough: bool = False
+    ) -> None:
         """ 初始化实例
 
         doc: werkzeug.utils.wrap_file
@@ -162,10 +182,15 @@ class FileResponse(BaseResponse):
 
     mimetype = 'application/octet-stream'
 
-    def __init__(self, response: HttpResponse = None, status: HTTPStatus = None, headers: HTTPDictHeaders = None,
-                 mimetype: t.Optional[str] = None, content_type: t.Optional[str] = None,
-                 direct_passthrough: bool = False
-                 ) -> None:
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[t.Text] = None,
+            content_type: t.Optional[t.Text] = None,
+            direct_passthrough: bool = False
+    ) -> None:
         """ 初始化实例
 
         doc: werkzeug.utils.wrap_file

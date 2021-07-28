@@ -8,5 +8,5 @@ from service_core.exception import RemoteError
 
 
 class BadRequest(RemoteError):
-    """ 400异常请求 """
+    """ 400异常 """
     pass

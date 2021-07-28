@@ -20,7 +20,9 @@ from service_webserver.core.response import HtmlResponse
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exception import gen_exception_description
 from service_core.core.service.entrypoint import BaseEntrypoint
-from service_webserver.core.openapi3 import create_response_field
+from service_webserver.core.openapi.helper import get_body_field
+from service_webserver.core.openapi.depent.helper import get_dependant
+from service_webserver.core.openapi.depent.helper import create_response_field
 from service_webserver.core.context import from_headers_to_context
 
 if t.TYPE_CHECKING:
@@ -100,6 +102,8 @@ class BaseReqConsumer(BaseEntrypoint):
             self.response_fields[status_code] = field
         super(BaseReqConsumer, self).__init__()
 
+        self.dependant = None
+
     def __repr__(self) -> t.Text:
         name = super(BaseReqConsumer, self).__repr__()
         return f'{name} - {self.raw_url}'
@@ -135,13 +139,14 @@ class BaseReqConsumer(BaseEntrypoint):
 
         @return: t.Text
         """
-        if self._description:
-            return self._description
-        fn_name = self.object_name
-        service = self.container.service
-        mapping = service.router_mapping
-        source = mapping[fn_name].__doc__
-        return inspect.getdoc(source)
+        return self._description
+        # if self._description:
+        #     return self._description
+        # fn_name = self.object_name
+        # service = self.container.service
+        # mapping = service.router_mapping
+        # source = mapping[fn_name].__doc__
+        # return inspect.getdoc(source)
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
@@ -159,6 +164,10 @@ class BaseReqConsumer(BaseEntrypoint):
         @return: t.Text
         """
         return f'Response_{self.operation_id}'
+
+    @AsLazyProperty
+    def body_field(self) -> ModelField:
+        return get_body_field(dependant=self.dependent, name=self.operation_id)
 
     @AsLazyProperty
     def response_field(self) -> ModelField:
@@ -182,6 +191,9 @@ class BaseReqConsumer(BaseEntrypoint):
 
         @return: None
         """
+        call = self.container.service.router_mapping[self.object_name]
+        self.dependant = get_dependant(path=self.path, call=call)
+
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})
@@ -231,7 +243,7 @@ class BaseReqConsumer(BaseEntrypoint):
         """
         event = Event()
         tid = f'{self}.self_handle_request'
-        worker_context = from_headers_to_context(dict(request.headers), self.headmap)
+        worker_context = from_headers_to_context(dict(request.headers), self.map_headers)
         args, kwargs = (request,), request.path_group_dict
         gt = self.container.spawn_worker_thread(self, args, kwargs, worker_context, tid=tid)
         gt.link(self._link_results, event)
