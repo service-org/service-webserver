@@ -28,6 +28,7 @@ class Dependant(object):
             body_fields: t.Optional[t.List[ModelField]] = None,
             dependencies: t.Optional[t.List[Dependant]] = None,
             request_field_name: t.Optional[t.Text] = None,
+            service_field_name: t.Optional[t.Text] = None,
             response_field_name: t.Optional[t.Text] = None,
             security_scopes: t.Optional[t.List[t.Text]] = None,
             security_scopes_field_name: t.Optional[t.Text] = None,
@@ -46,6 +47,7 @@ class Dependant(object):
         @param body_fields: body参数字段列表
         @param dependencies: 下级依赖对象列表
         @param request_field_name: request字段名
+        @param service_field_name: service字段名
         @param response_field_name: response字段名
         @param security_scopes: 安全范围列表
         @param security_scopes_field_name: 安全范围字段名
@@ -62,6 +64,7 @@ class Dependant(object):
         self.body_fields = body_fields or []
         self.dependencies = dependencies or []
         self.request_field_name = request_field_name
+        self.service_field_name = service_field_name
         self.response_field_name = response_field_name
         self.security_scopes = security_scopes
         self.security_schemes = security_schemes or []

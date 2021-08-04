@@ -524,44 +524,44 @@ class File(Form):
         )
 
 
-class Depends(object):
+class Depended(object):
     """ 通用依赖注入类 """
 
     def __init__(
             self,
-            dependency: t.Optional[t.Callable[..., t.Any]] = None,
+            dependent: t.Optional[t.Callable[..., t.Any]] = None,
             *,
             use_cache: bool = True
     ) -> None:
         """ 初始化实例
 
-        @param dependency: 可调用对象,通过它分析字段期望值的签名结构
+        @param dependent: 可调用的对象
         @param use_cache: 是否使用缓存 ?
         """
         self.use_cache = use_cache
-        self.dependency = dependency
+        self.dependent = dependent
 
     def __repr__(self) -> t.Text:
-        attr = getattr(self.dependency, '__name__', type(self.dependency).__name__)
+        attr = getattr(self.dependent, '__name__', type(self.dependent).__name__)
         cache = '' if self.use_cache else ', use_cache=False'
         return f'{self.__class__.__name__}({attr}{cache})'
 
 
-class Security(Depends):
+class Security(Depended):
     """ 安全依赖注入类 """
 
     def __init__(
             self,
-            dependency: t.Optional[t.Callable[..., t.Any]] = None,
+            dependent: t.Optional[t.Callable[..., t.Any]] = None,
             *,
             scopes: t.Optional[t.Sequence[t.Text]] = None,
             use_cache: bool = True
     ) -> None:
         """ 初始化实例
 
-        @param dependency: 可调用对象,通过它分析字段期望值的签名结构
+        @param dependent: 可调用的对象
         @param scopes: 权限范围列表
         @param use_cache: 是否使用缓存 ?
         """
         self.scopes = scopes or []
-        super().__init__(dependency=dependency, use_cache=use_cache)
+        super().__init__(dependent=dependent, use_cache=use_cache)

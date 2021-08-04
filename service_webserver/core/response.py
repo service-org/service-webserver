@@ -26,7 +26,13 @@ HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
 # 响应头部
 HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 
-__all__ = ['HtmlResponse', 'JsonResponse', 'RedirectResponse', 'PlainTextResponse', 'StreamResponse', 'FileResponse']
+__all__ = ['Response',
+           'HtmlResponse',
+           'JsonResponse',
+           'RedirectResponse',
+           'PlainTextResponse',
+           'StreamResponse',
+           'FileResponse']
 
 
 class Response(BaseResponse):

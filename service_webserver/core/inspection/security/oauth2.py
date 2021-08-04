@@ -11,6 +11,13 @@ from service_webserver.core.request import Request
 from .base import SecurityBase
 
 
+class SecurityScopes(object):
+    """ 权限范围基类 """
+    def __init__(self, scopes: t.Optional[t.List[t.Text]] = None):
+        self.scopes = scopes or []
+        self.scopes_str = ' '.join(self.scopes)
+
+
 class OAuth2(SecurityBase):
     """ OAuth2认证类 """
 

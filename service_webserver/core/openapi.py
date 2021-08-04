@@ -12,6 +12,7 @@ from functools import partial
 from inspect import Parameter
 from inspect import Signature
 from pydantic import BaseConfig
+from pydantic.fields import Required
 from pydantic.fields import FieldInfo
 from pydantic.fields import Undefined
 from pydantic.fields import ModelField
@@ -30,15 +31,11 @@ from .inspection.checking import is_subclass
 from .inspection.security.oauth2 import OAuth2
 from .inspection.security.base import SecurityBase
 from .inspection.security.base import SecurityScheme
+from .inspection.security.oauth2 import SecurityScopes
 from .inspection.security.openid_connect import OpenIdConnect
 
 
-def gen_operation_id_for_path(
-        *,
-        name: t.Text,
-        path: t.Text,
-        method: t.Text
-) -> t.Text:
+def gen_operation_id_for_path(*, name: t.Text, path: t.Text, method: t.Text) -> t.Text:
     """ 生成路径操作标识
 
     doc: https://swagger.io/specification/#operation-object
@@ -51,8 +48,7 @@ def gen_operation_id_for_path(
     operation_id = name + path
     # path规范必须以/开头,所以/会被自动转换为-
     operation_id = re.sub(r'[^0-9a-zA-Z_]', '_', operation_id)
-    operation_id = operation_id + '_' + method.lower()
-    return operation_id
+    return operation_id + '_' + method.lower()
 
 
 def gen_model_field(
@@ -97,54 +93,55 @@ def gen_model_field(
         field_info=field_info
     )
 
-
-def get_annotation_object(
+def gen_param_field(
+        *,
         param: Parameter,
-        global_ns: t.Dict[t.Text, t.Any]
-) -> t.Any:
+        param_name: t.Text,
+        param_type: t.Optional[params.ParamTypes] = None,
+        ignore_default_val: t.Optional[bool] = None,
+        default_field_info: t.Optional[t.Type[params.Param]] = None,
+) -> ModelField:
+    """ 生成请求模型字段
+
+    @param param: 参数对象
+    @param param_name: 参数名称
+    @param param_type: 参数类型
+    @param ignore_default_val: 忽略参数
+    @param default_field_info: 额外数据
+    @return: ModelField
+    """
+    default_value = Required
+    default_field_info = default_field_info or params.Param
+    if param.default != param.empty and not ignore_default_val:
+        default_value = param.default
+    if isinstance(default_value, FieldInfo):
+        field_info = default_value
+        default_value = field_info.default
+
+        if (isinstance(field_info, params.Param)
+            and
+            getattr(field_info, 'in_', None) is None):
+
+
+
+def get_annotation_object(param: Parameter, global_ns: t.Dict[t.Text, t.Any]) -> t.Any:
     """ 从注解获取原始对应的对象
 
     @param param: 参数对象
     @param global_ns: 命名空间
+
     @return: t.Any
     """
     annotation = param.annotation
-    if isinstance(annotation, t.Text):
-        annotation = ForwardRef(annotation)
+    annotation = ForwardRef(annotation) if isinstance(annotation, t.Text) else annotation
     # 通过对象的全局命名空间反射获取其注解的原始对象
-    to_object = partial(evaluate_forwardref,
-                        globalns=global_ns,
-                        localns=global_ns)
-    if isinstance(annotation, ForwardRef):
-        annotation = to_object(annotation)
-    return annotation
-
-
-def add_non_param_to_dependency(
-        *,
-        param: Parameter,
-        dependant: Dependant,
-) -> t.Optional[bool]:
-    """ 忽略掉不作为字段的参数
-
-    @param param: 参数对象
-    @param dependant: 依赖对象
-    @return: t.Optional[bool]
-    """
-    if is_subclass(param.annotation, Request):
-        dependant.request_field_name = param.name
-        return True
-    if is_subclass(param.annotation, Response):
-        dependant.response_field_name = param.name
-        return True
-    if is_subclass(param.annotation, BaseService):
-
-    return None
+    to_object = partial(evaluate_forwardref, globalns=global_ns, localns=global_ns)
+    return to_object(annotation) if isinstance(annotation, ForwardRef) else annotation
 
 
 def get_sub_dependant_from_call(
         *,
-        depends: params.Depends,
+        depended: params.Depended,
         call: t.Callable[..., t.Any],
         path: t.Text,
         name: t.Optional[t.Text] = None,
@@ -152,7 +149,7 @@ def get_sub_dependant_from_call(
 ) -> Dependant:
     """ 从调用对象获取子依赖树
 
-    @param depends: 参数默认值
+    @param depended: 参数默认值
     @param call: 调用对象
     @param path: 请求路径
     @param name: 依赖名称
@@ -162,9 +159,9 @@ def get_sub_dependant_from_call(
     security_scheme = None
     security_scopes = security_scopes or []
     # 当参数默认值为Security对象则收集它的安全范围
-    if isinstance(depends, params.Security):
-        security_scopes.extend(depends.scopes)
-    # 当默认值的dependency是SecurityBase子类实例
+    if isinstance(depended, params.Security):
+        security_scopes.extend(depended.scopes)
+    # 当默认值的dependant是SecurityBase子类实例
     if isinstance(call, SecurityBase):
         authes = (OAuth2, OpenIdConnect)
         # 除了OAuth2和OpenIdConnect认证需要scopes其它的不需要
@@ -172,11 +169,10 @@ def get_sub_dependant_from_call(
         # 构建一个新的SecurityScheme,不要尝试去直接赋值security_scopes
         security_scheme = SecurityScheme(scheme=call, scopes=scopes)
     # 递归构建依赖树并自动挂载到上级依赖对象的dependencies上
-    sub_dependant = get_dependant_from_call(path=path,
-                                            call=call,
-                                            name=name,
-                                            use_cache=depends.use_cache,
-                                            security_scopes=security_scopes)
+    sub_dependant = get_dependant_from_call(
+        path=path, call=call, name=name, use_cache=depended.use_cache,
+        security_scopes=security_scopes
+    )
     sub_dependant.security_scopes = security_scopes
     # 记录上面构建的SecurityScheme,此时的call其实是继承自SecurityBase的认证实例
     security_scheme and sub_dependant.security_schemes.append(security_scheme)
@@ -199,11 +195,12 @@ def get_sub_dependant_from_param(
     @return: Dependant
     """
     # 获取参数的默认值
-    depends = param.default
-    # 如果depends对象存在dependency则将其作为call否则将反射后的注解作为call递归解析依赖树
-    call = depends.dependency if depends.dependency else param.annotation
+    depended = param.default
+    # 如果depends对象存在dependant则将其作为call否则将反射后的注解作为call递归解析依赖树
+    call = depended.dependent if depended.dependent else param.annotation
+    name = name or param.name
     return get_sub_dependant_from_call(
-        depends=depends,
+        depended=depended,
         call=call,
         path=path,
         name=name,
@@ -211,9 +208,33 @@ def get_sub_dependant_from_param(
     )
 
 
-def gen_signature_of_call(
-        call: t.Callable[..., t.Any]
-) -> Signature:
+def add_non_param_to_dependent(*, param: Parameter, dependant: Dependant) -> t.Optional[bool]:
+    """ 忽略掉不作为字段的参数
+
+    @param param: 参数对象
+    @param dependant: 依赖对象
+    @return: t.Optional[bool]
+    """
+    # 忽略掉SecurityScopes并记录其字段名
+    if is_subclass(param.annotation, SecurityScopes):
+        dependant.security_scopes_field_name = param.name
+        return True
+    # 忽略掉Service子类字段并记录其字段名
+    if is_subclass(param.annotation, Service):
+        dependant.service_field_name = param.name
+        return True
+    # 忽略掉Request子类字段并记录其字段名
+    if is_subclass(param.annotation, Request):
+        dependant.request_field_name = param.name
+        return True
+    # 忽略掉Response子类字段并记录其字段名
+    if is_subclass(param.annotation, Response):
+        dependant.response_field_name = param.name
+        return True
+    return None
+
+
+def gen_signature_of_call(call: t.Callable[..., t.Any]) -> Signature:
     """ 从调用对象生成其签名对象
 
     @param call: 调用对象
@@ -234,9 +255,7 @@ def gen_signature_of_call(
     return Signature(parameters=parameters)
 
 
-def get_field_names_from_path(
-        path: t.Text
-) -> t.Set[t.Text]:
+def get_field_names_from_path(path: t.Text) -> t.Set[t.Text]:
     """ 从请求路径获取名称列表
 
     用途: 主要用于后面判断是否为路径参数
@@ -266,19 +285,18 @@ def get_dependant_from_call(
     """
     # 获取路径参数中的参数名集合,用于判断是否为路径参数
     path_field_names = get_field_names_from_path(path)
-    # 重新为调用对象生成签名对象,主要反射所有参数的注解
+    # 重新为调用对象生成签名对象,用于反射所有参数的注解
     call_signature = gen_signature_of_call(call)
-    call_parameters = call_signature.parameters
     # 创建一个当前依赖对象
     dependant = Dependant(name=name, path=path, call=call, use_cache=use_cache)
-    # 遍历当前调用对象参数
-    for param_name, param in call_parameters.items():
-        # 当参数同样为为依赖对象时,递归解析其dependency调用对象并将其注入到当前依赖对象
-        if isinstance(param.default, params.Depends):
-            sub_dependant = get_sub_dependant_from_param(param=param,
-                                                         path=path,
-                                                         name=param_name,
-                                                         security_scopes=security_scopes)
+    for param_name, param in call_signature.parameters.items():
+        # 当参数的注解为特定类例如Request,Response,Service,scopes忽略
+        if add_non_param_to_dependent(param=param, dependant=dependant):
+            continue
+        # 当参数值为依赖对象时,递归解析其dependant并将其注入到当前依赖对象
+        if isinstance(param.default, params.Depended):
+            sub_dependant = get_sub_dependant_from_param(
+                param=param, path=path, security_scopes=security_scopes)
             dependant.dependencies.append(sub_dependant)
             continue
     return dependant
