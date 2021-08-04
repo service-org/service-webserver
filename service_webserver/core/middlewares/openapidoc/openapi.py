@@ -8,7 +8,7 @@ import re
 import typing as t
 
 from pydantic.schema import field_schema
-from service_green.core.green import json
+from service_green.core.green import cjson
 from pydantic.schema import get_model_name_map
 from service_webserver.core.openapi import params
 from pydantic.schema import get_flat_models_from_fields

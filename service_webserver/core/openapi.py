@@ -16,13 +16,11 @@ from pydantic.fields import FieldInfo
 from pydantic.fields import Undefined
 from pydantic.fields import ModelField
 from pydantic.schema import ForwardRef
+from pydantic.fields import BoolUndefined
 from pydantic.typing import NoArgAnyCallable
+from service_core.core.service import Service
 from pydantic.class_validators import Validator
 from pydantic.typing import evaluate_forwardref
-from service_core.core.service.base import BaseService
-
-if t.TYPE_CHECKING:
-    from pydantic.fields import BoolUndefined
 
 from .request import Request
 from .response import Response

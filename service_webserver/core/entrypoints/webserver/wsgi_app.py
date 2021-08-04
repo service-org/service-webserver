@@ -6,22 +6,21 @@ from __future__ import annotations
 
 import typing as t
 import werkzeug.exceptions
-from werkzeug.wrappers import Request
+
+from service_webserver.core.request import Request
 
 if t.TYPE_CHECKING:
+    # ReqProducer引用了App,需防止循环引用
+    from .producer import ReqProducer
+    # 由于其定义在存根文件所以需要在TYPE_CHECKING下
     from werkzeug.wrappers.response import StartResponse
     from werkzeug.wrappers.request import WSGIEnvironment
-
-    from .producer import ReqProducer
-
-    # 生产者类型
-    Producer = t.TypeVar('Producer', bound=ReqProducer)
 
 
 class WsgiApp(object):
     """ Wsgi Application """
 
-    def __init__(self, producer: Producer) -> None:
+    def __init__(self, producer: ReqProducer) -> None:
         """ 初始化实例
 
         @param producer: 请求生产者对象

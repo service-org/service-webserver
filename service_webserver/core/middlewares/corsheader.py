@@ -7,27 +7,25 @@ from __future__ import annotations
 import typing as t
 
 from werkzeug.datastructures import Headers
+from service_core.core.service.entrypoint import Entrypoint
 
 if t.TYPE_CHECKING:
-    from sys import _OptExcInfo
+    # 由于其定义在存根文件所以需要在TYPE_CHECKING下
     from werkzeug.wsgi import WSGIApplication
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
-    from service_core.core.service.entrypoint import BaseEntrypoint
 
-    # 入口类型
-    Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
-    # 字典头部
-    HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
-    # 元组头部
-    HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
-    # 响应头部
-    HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
+from .base import Middleware
 
-from .base import BaseMiddleware
+# 字典头部
+HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
+# 元组头部
+HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
+# 响应头部
+HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 
 
-class CorsHeaderMiddleware(BaseMiddleware):
+class CorsHeaderMiddleware(Middleware):
     """ 跨越配置中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
@@ -53,7 +51,7 @@ class CorsHeaderMiddleware(BaseMiddleware):
         @return: t.Iterable[bytes]
         """
 
-        def add_cors_headers(status: t.Text, headers: HttpHeaders, exc_info: t.Optional[_OptExcInfo] = None):
+        def add_cors_headers(status: t.Text, headers: HttpHeaders, exc_info: t.Optional[t.Tuple] = None):
             """ 添加跨域头部
 
             @param status  : 响应状态

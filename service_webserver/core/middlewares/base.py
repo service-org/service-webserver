@@ -6,17 +6,16 @@ from __future__ import annotations
 
 import typing as t
 
+from service_core.core.service.entrypoint import Entrypoint
+
 if t.TYPE_CHECKING:
+    # 由于其定义在存根文件所以需要在TYPE_CHECKING下
     from werkzeug.wsgi import WSGIApplication
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
-    from service_core.core.service.entrypoint import BaseEntrypoint
-
-    # 入口类型
-    Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
 
 
-class BaseMiddleware(object):
+class Middleware(object):
     """ 中间件基类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:

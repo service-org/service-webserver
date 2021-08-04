@@ -10,33 +10,29 @@ import typing as t
 from eventlet.green import http
 from werkzeug.urls import iri_to_uri
 from werkzeug.wsgi import FileWrapper
-from service_green.core.green import json
+from eventlet.green.http import HTTPStatus
+from service_green.core.green import cjson
 from werkzeug.utils import get_content_type
+from werkzeug.wrappers.response import Response as BaseResponse
 
-if t.TYPE_CHECKING:
-    from eventlet.green.http import HTTPStatus
-    from werkzeug.wrappers.response import Response
-
-    # 响应内容
-    HttpResponse = t.Optional[t.Union[t.Iterable[bytes], bytes, t.Iterable[str], str]]
-    # 响应状态
-    HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
-    # 字典头部
-    HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
-    # 元组头部
-    HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
-    # 响应头部
-    HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
-
-from werkzeug.wrappers.response import Response
+# 响应内容
+HttpResponse = t.Optional[t.Union[t.Iterable[bytes], bytes, t.Iterable[str], str]]
+# 响应状态
+HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
+# 字典头部
+HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
+# 元组头部
+HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
+# 响应头部
+HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 
 __all__ = ['HtmlResponse', 'JsonResponse', 'RedirectResponse', 'PlainTextResponse', 'StreamResponse', 'FileResponse']
 
 
-class BaseResponse(Response):
+class Response(BaseResponse):
     """ 默认响应基类 """
 
-    json_module = json
+    json_module = cjson
     mimetype = 'text/plain'
 
     def __init__(
@@ -59,16 +55,36 @@ class BaseResponse(Response):
         """
         headers = headers or {}
         headers['Content-Type'] = get_content_type(self.mimetype, self.charset)
-        super(BaseResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
+        super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
-class HtmlResponse(BaseResponse):
+class HtmlResponse(Response):
     """ 网页格式响应类 """
 
     mimetype = 'text/html'
 
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[str] = None,
+            content_type: t.Optional[str] = None,
+            direct_passthrough: bool = False
+    ) -> None:
+        """ 初始化实例
 
-class JsonResponse(BaseResponse):
+        @param response: 响应内容
+        @param status  : 响应状态
+        @param headers : 头部信息
+        @param mimetype: 内容类型
+        @param content_type: 响应类型
+        @param direct_passthrough: 是否以流式直传?
+        """
+        super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
+
+
+class JsonResponse(Response):
     """ JSON格式响应类 """
     mimetype = 'application/json'
 
@@ -90,17 +106,37 @@ class JsonResponse(BaseResponse):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
-        response = json.dumps(response)
+        response = cjson.dumps(response)
         super(JsonResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
-class PlainTextResponse(BaseResponse):
+class PlainTextResponse(Response):
     """ 文本格式响应类 """
 
     mimetype = 'text/plain'
 
+    def __init__(
+            self,
+            response: HttpResponse = None,
+            status: HTTPStatus = None,
+            headers: HTTPDictHeaders = None,
+            mimetype: t.Optional[str] = None,
+            content_type: t.Optional[str] = None,
+            direct_passthrough: bool = False
+    ) -> None:
+        """ 初始化实例
 
-class RedirectResponse(BaseResponse):
+        @param response: 响应内容
+        @param status  : 响应状态
+        @param headers : 头部信息
+        @param mimetype: 内容类型
+        @param content_type: 响应类型
+        @param direct_passthrough: 是否以流式直传?
+        """
+        super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
+
+
+class RedirectResponse(Response):
     """ 跳转格式响应类 """
 
     mimetype = 'text/html'
@@ -127,7 +163,7 @@ class RedirectResponse(BaseResponse):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
-        status = http.HTTPStatus.FOUND.value
+        status = status or http.HTTPStatus.FOUND.value
         if isinstance(location, str):
             # Safe conversion is necessary here as we might redirect
             # to a broken URI scheme (for instance itms-services).
@@ -135,7 +171,7 @@ class RedirectResponse(BaseResponse):
         headers = headers or {}
         headers['Location'] = location
         display_location = html.escape(location)
-        response = (
+        response = response or (
             '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n'
             "<title>Redirecting...</title>\n"
             "<h1>Redirecting...</h1>\n"
@@ -146,7 +182,7 @@ class RedirectResponse(BaseResponse):
         super(RedirectResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
-class StreamResponse(BaseResponse):
+class StreamResponse(Response):
     """ 流式格式响应类 """
 
     buffer_size = 8192
@@ -172,12 +208,12 @@ class StreamResponse(BaseResponse):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
-        direct_passthrough = True
+        direct_passthrough = direct_passthrough or True
         response = FileWrapper(response, buffer_size=self.buffer_size)  # type: ignore
         super(StreamResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
-class FileResponse(BaseResponse):
+class FileResponse(Response):
     """ 文件格式响应 """
 
     mimetype = 'application/octet-stream'
@@ -202,6 +238,6 @@ class FileResponse(BaseResponse):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
-        direct_passthrough = True
+        direct_passthrough = direct_passthrough or True
         response = FileWrapper(response, buffer_size=self.buffer_size)  # type: ignore
         super(FileResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)

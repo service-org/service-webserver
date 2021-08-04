@@ -18,6 +18,11 @@ setup(
     long_description=readme,
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['test', 'test.*']),
+    install_requires=[
+        'pydantic==1.8.2',
+        'werkzeug==2.0.1',
+        'service-core', 'service-green'
+    ],
     classifiers=[
         'Typing :: Typed',
         'Operating System :: MacOS',
@@ -26,5 +31,4 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3.9',
     ],
-    install_requires=['service-core', 'service-green', 'werkzeug==2.0.1']
 )

@@ -5,61 +5,57 @@
 from __future__ import annotations
 
 import re
-import inspect
+import sys
+import http
+import eventlet
 import typing as t
 import werkzeug.exceptions
 
-from eventlet.green import http
+from http import HTTPStatus
+from logging import getLogger
 from eventlet.event import Event
 from werkzeug.routing import Rule
 from werkzeug.wrappers import Response
 from eventlet.greenthread import GreenThread
+from service_core.core.context import WorkerContext
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
 from service_webserver.core.response import HtmlResponse
+from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
-from service_core.exception import gen_exception_description
-from service_core.core.service.entrypoint import BaseEntrypoint
-from service_webserver.core.openapi.helper import get_body_field
-from service_webserver.core.openapi.depent.helper import get_dependant
-from service_webserver.core.openapi.depent.helper import create_response_field
-from service_webserver.core.context import from_headers_to_context
-
-if t.TYPE_CHECKING:
-    from pydantic.fields import ModelField
-    from eventlet.green.http import HTTPStatus
-    from service_core.core.context import WorkerContext
-
-    # 响应状态
-    HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
-
-from pydantic.fields import ModelField
+from service_core.exchelper import gen_exception_description
+from service_webserver.core.convert import from_headers_to_context
 
 from .producer import ReqProducer
 
+logger = getLogger(__name__)
+# 响应状态
+HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
 
-class BaseReqConsumer(BaseEntrypoint):
+class ReqConsumer(Entrypoint):
     """ 通用请求消费者类 """
 
-    name = 'BaseReqConsumer'
+    name = 'ReqConsumer'
 
     producer = ReqProducer()
 
-    def __init__(self,
-                 raw_url: t.Text,
-                 methods: t.Tuple = ('GET',),
-                 tags: t.Optional[t.List] = None,
-                 summary: t.Optional[t.Text] = None,
-                 status_code: t.Optional[int] = None,
-                 description: t.Optional[t.Text] = None,
-                 deprecated: t.Optional[bool] = False,
-                 operation_id: t.Optional[t.Text] = None,
-                 response_class: t.Type[Response] = None,
-                 response_description: str = 'Successful Response',
-                 response_model: t.Optional[t.Type[t.Any]] = None,
-                 include_in_doc: t.Optional[bool] = True,
-                 other_response: t.Optional[t.Dict[t.Union[int, str], t.Dict[str, t.Any]]] = None,
-                 **options) -> None:
+    def __init__(
+            self,
+            raw_url: t.Text,
+            methods: t.Tuple = ('GET',),
+            tags: t.Optional[t.List] = None,
+            summary: t.Optional[t.Text] = None,
+            status_code: t.Optional[int] = None,
+            description: t.Optional[t.Text] = None,
+            deprecated: t.Optional[bool] = False,
+            operation_id: t.Optional[t.Text] = None,
+            response_class: t.Type[Response] = None,
+            response_description: t.Text = 'Successful Response',
+            response_model: t.Optional[t.Type[t.Any]] = None,
+            include_in_doc: t.Optional[bool] = True,
+            other_response: t.Optional[t.Dict[t.Union[int, t.Text], t.Dict[t.Text, t.Any]]] = None,
+            **options
+    ) -> None:
         """ 初始化实例
 
         @param raw_url: 原始url
@@ -83,8 +79,8 @@ class BaseReqConsumer(BaseEntrypoint):
         self.options = options
         # 响应配置 - 指定响应类构建响应
         self.response_class = response_class
-        # Doc配置 - 构建OpenApi的文档
-        self._tags = tags
+        # Api配置 - 构建OpenApi的文档
+        self.tags = tags or []
         self._summary = summary
         self._description = description
         self._operation_id = operation_id
@@ -95,87 +91,33 @@ class BaseReqConsumer(BaseEntrypoint):
         self.include_in_doc = include_in_doc
         self.response_description = response_description
         self.response_fields = {}
-        for status, response in self.other_response.items():
-            model = response.get('model')
-            name = f'Response_{status}_{self.operation_id}'
-            field = create_response_field(name=name, type_=model)
-            self.response_fields[status_code] = field
-        super(BaseReqConsumer, self).__init__()
-
-        self.dependant = None
+        super(ReqConsumer, self).__init__()
 
     def __repr__(self) -> t.Text:
-        name = super(BaseReqConsumer, self).__repr__()
+        name = super(ReqConsumer, self).__repr__()
         return f'{name} - {self.raw_url}'
 
     @AsLazyProperty
     def path(self) -> t.Text:
-        """ 获取标准路径
-
-        @return: t.Text
-        """
         repl = lambda m: '{' + m.group(1) + '}'
         return re.sub(r'<[^:>]*:([^>]*)>', repl, self.raw_url)
 
     @AsLazyProperty
-    def tags(self) -> t.List:
-        """ 获取分组标签
-
-        @return: t.List
-        """
-        return self._tags or []
-
-    @AsLazyProperty
     def summary(self) -> t.Text:
-        """ 获取接口简介
-
-        @return: t.Text
-        """
         return self._summary or self.object_name
 
     @AsLazyProperty
     def description(self) -> t.Text:
-        """ 获取接口描述
-
-        @return: t.Text
-        """
         return self._description
-        # if self._description:
-        #     return self._description
-        # fn_name = self.object_name
-        # service = self.container.service
-        # mapping = service.router_mapping
-        # source = mapping[fn_name].__doc__
-        # return inspect.getdoc(source)
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
-        """ 获取操作标识
-
-        @return: t.Text
-        """
         name = self.summary.rsplit('.', 1)[-1]
         return re.sub(r'[^0-9a-zA-Z_]', '_', name + self.path)
 
     @AsLazyProperty
     def response_name(self) -> t.Text:
-        """ 生成响应名称
-
-        @return: t.Text
-        """
         return f'Response_{self.operation_id}'
-
-    @AsLazyProperty
-    def body_field(self) -> ModelField:
-        return get_body_field(dependant=self.dependent, name=self.operation_id)
-
-    @AsLazyProperty
-    def response_field(self) -> ModelField:
-        """ 获取响应字段
-
-        @return: t.Optional[ModelField]
-        """
-        return create_response_field(name=self.response_name, type_=self.response_model)
 
     @AsLazyProperty
     def rule(self) -> Rule:
@@ -184,16 +126,13 @@ class BaseReqConsumer(BaseEntrypoint):
         @return: Rule
         """
         # 官方推荐并把endpoint的类型限定为字符串! 优化匹配暂且指定为当前entrypoint
-        return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.options)
+        return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.options)  # type: ignore
 
     def setup(self) -> None:
         """ 生命周期 - 载入阶段
 
         @return: None
         """
-        call = self.container.service.router_mapping[self.object_name]
-        self.dependant = get_dependant(path=self.path, call=call)
-
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})
@@ -232,7 +171,12 @@ class BaseReqConsumer(BaseEntrypoint):
         @param event: 事件
         @return: None
         """
-        context, results, excinfo = gt.wait()
+        # fix: 此协程异常会导致收不到event最终内存溢出!
+        try:
+            context, results, excinfo = gt.wait()
+        except Exception:
+            results, excinfo = None, sys.exc_info()
+            context = eventlet.getcurrent().context
         event.send((context, results, excinfo))
 
     def handle_request(self, request) -> t.Tuple:
@@ -243,10 +187,12 @@ class BaseReqConsumer(BaseEntrypoint):
         """
         event = Event()
         tid = f'{self}.self_handle_request'
-        worker_context = from_headers_to_context(dict(request.headers), self.map_headers)
+        request_header = dict(request.headers)
+        worker_context = from_headers_to_context(request_header, self.map_headers)
         args, kwargs = (request,), request.path_group_dict
         gt = self.container.spawn_worker_thread(self, args, kwargs, worker_context, tid=tid)
         gt.link(self._link_results, event)
+        # 注意: 此协程异常会导致收不到event最终内存溢出!
         context, results, excinfo = event.wait()
         return context, results, excinfo
 
@@ -269,7 +215,7 @@ class BaseReqConsumer(BaseEntrypoint):
         raise NotImplementedError
 
 
-class WebReqConsumer(BaseReqConsumer):
+class WebReqConsumer(ReqConsumer):
     """ WEB请求消费者类 """
 
     name = 'WebReqConsumer'
@@ -317,6 +263,7 @@ class WebReqConsumer(BaseReqConsumer):
         """
         exc_type, exc_value, exc_trace = excinfo
         exc_name = exc_type.__name__
+        # 如果存在定义的同名异常类则使用对应的异常类的code值作为响应码
         if hasattr(werkzeug.exceptions, exc_name):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
@@ -334,7 +281,7 @@ class WebReqConsumer(BaseReqConsumer):
         return response_class(payload, status=status)
 
 
-class ApiReqConsumer(BaseReqConsumer):
+class ApiReqConsumer(ReqConsumer):
     """ API请求消费者类 """
 
     name = 'ApiReqConsumer'
@@ -384,6 +331,7 @@ class ApiReqConsumer(BaseReqConsumer):
         """
         exc_type, exc_value, exc_trace = excinfo
         exc_name = exc_type.__name__
+        # 如果存在定义的同名异常类则使用对应的异常类的code值作为响应码
         if hasattr(werkzeug.exceptions, exc_name):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
