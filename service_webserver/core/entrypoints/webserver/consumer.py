@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import enum
+import inspect
 import re
 import sys
 import http
@@ -15,15 +17,19 @@ from http import HTTPStatus
 from logging import getLogger
 from eventlet.event import Event
 from werkzeug.routing import Rule
+from pydantic.fields import ModelField
 from werkzeug.wrappers import Response
 from eventlet.greenthread import GreenThread
 from service_core.core.context import WorkerContext
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
 from service_webserver.core.response import HtmlResponse
+from service_webserver.core.openapi import get_body_field
+from service_webserver.core.openapi import gen_model_field
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exchelper import gen_exception_description
+from service_webserver.core.openapi import get_dependent_from_call
 from service_webserver.core.convert import from_headers_to_context
 
 from .producer import ReqProducer
@@ -31,6 +37,7 @@ from .producer import ReqProducer
 logger = getLogger(__name__)
 # 响应状态
 HttpStatus = t.Optional[t.Union[int, str, HTTPStatus]]
+
 
 class ReqConsumer(Entrypoint):
     """ 通用请求消费者类 """
@@ -80,17 +87,33 @@ class ReqConsumer(Entrypoint):
         # 响应配置 - 指定响应类构建响应
         self.response_class = response_class
         # Api配置 - 构建OpenApi的文档
+        self.dependent = None
         self.tags = tags or []
+        self._body_field = None
         self._summary = summary
         self._description = description
         self._operation_id = operation_id
         self.deprecated = deprecated
-        self.status_code = status_code
-        self.other_response = other_response or {}
+        if isinstance(status_code, enum.IntEnum):
+            self.status_code = int(status_code)
+        else:
+            self.status_code = status_code
         self.response_model = response_model
+        self.other_response_fields = {}
+        self.other_response = other_response or {}
+        for code, r in self.other_response.items():
+            as_dict = isinstance(r, dict)
+            as_dict or logger.error(f'{code} rsp must dict')
+            rsp_model = response_model = r.get('model')
+            if not response_model:
+                continue
+            rsp_name = f'Response_{code}_{self.operation_id}'
+            rsp_field = gen_model_field(
+                name=rsp_name, type_=rsp_model
+            )
+            self.other_response_fields[code] = rsp_field
         self.include_in_doc = include_in_doc
         self.response_description = response_description
-        self.response_fields = {}
         super(ReqConsumer, self).__init__()
 
     def __repr__(self) -> t.Text:
@@ -103,21 +126,43 @@ class ReqConsumer(Entrypoint):
         return re.sub(r'<[^:>]*:([^>]*)>', repl, self.raw_url)
 
     @AsLazyProperty
+    def endpoint(self) -> t.Callable[..., t.Any]:
+        router_mapping = self.container.service.router_mapping
+        return router_mapping[self.object_name]
+
+    @AsLazyProperty
     def summary(self) -> t.Text:
         return self._summary or self.object_name
 
     @AsLazyProperty
     def description(self) -> t.Text:
-        return self._description
+        if self._description is not None:
+            description = self._description
+        else:
+            method = self.endpoint
+            doc = method.__doc__ or ''
+            description = inspect.getdoc(doc)
+        return description
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
-        name = self.summary.rsplit('.', 1)[-1]
-        return re.sub(r'[^0-9a-zA-Z_]', '_', name + self.path)
+        return re.sub(r'[^0-9a-zA-Z_]', '_', self.path)
 
     @AsLazyProperty
     def response_name(self) -> t.Text:
         return f'Response_{self.operation_id}'
+
+    @AsLazyProperty
+    def body_field(self) -> t.Optional[ModelField]:
+        return self._body_field
+
+    @AsLazyProperty
+    def response_field(self) -> t.Optional[ModelField]:
+        return gen_model_field(name=self.response_name, type_=self.response_model) if self.response_model else None
+
+    @AsLazyProperty
+    def response_field_cloned(self) -> t.Optional[ModelField]:
+        return None
 
     @AsLazyProperty
     def rule(self) -> Rule:
@@ -133,6 +178,10 @@ class ReqConsumer(Entrypoint):
 
         @return: None
         """
+        # 在service container初始化完毕后对endpoint分析生成依赖树并构建body字段
+        self.dependent = get_dependent_from_call(path=self.path, call=self.endpoint, name=self.summary)
+        self._body_field = get_body_field(dependent=self.dependent, name=self.operation_id)
+
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})

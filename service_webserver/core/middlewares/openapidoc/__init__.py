@@ -9,37 +9,39 @@ import typing as t
 from collections import namedtuple
 from werkzeug.wrappers import Request
 from service_core.core.decorator import AsLazyProperty
-from service_webserver.core.middlewares.base import BaseMiddleware
+from service_core.core.service.entrypoint import Entrypoint
+from service_webserver.core.middlewares.base import Middleware
 
 if t.TYPE_CHECKING:
+    # 由于其定义在存根文件所以需要在TYPE_CHECKING下
     from werkzeug.wsgi import WSGIApplication
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
-    from service_core.core.service.entrypoint import BaseEntrypoint
 
-    # 入口类型
-    Entrypoint = t.TypeVar('Entrypoint', bound=BaseEntrypoint)
-
-from .asserts import get_redoc_payload
-from .asserts import get_swagger_payload
+from .asserts import get_redoc_html
 from .openapi import get_openapi_payload
+from .asserts import get_swagger_ui_html
+from .asserts import get_swagger_ui_oauth2_redirect_html
 
 Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
 
 
-class OpenApiDocMiddleware(BaseMiddleware):
+class OpenApiDocMiddleware(Middleware):
     """ OpenApi doc 中间件类 """
 
-    def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
-                 title: t.Text = '', description: t.Text = '',
-                 version: t.Text = '0.0.1',
-                 openapi_version: t.Text = '3.0.3',
-                 openapi_url: t.Optional[t.Text] = '/openapi.json',
-                 api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
-                 redoc_url: t.Optional[t.Text] = '/redoc',
-                 swagger_url: t.Optional[t.Text] = '/swagger',
-                 servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None
-                 ) -> None:
+    def __init__(
+            self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
+            title: t.Text = '', description: t.Text = '',
+            version: t.Text = '0.0.1',
+            openapi_version: t.Text = '3.0.3',
+            openapi_url: t.Optional[t.Text] = '/openapi.json',
+            api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
+            redoc_url: t.Optional[t.Text] = '/redoc',
+            swagger_url: t.Optional[t.Text] = '/swagger',
+            swagger_ui_oauth2_init: t.Optional[t.Dict[t.Text, t.Any]] = None,
+            swagger_ui_oauth2_redirect_url: t.Optional[t.Text] = '/swagger/oauth2-redirect',
+            servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None
+    ) -> None:
         """ 初始化实例
 
         doc: https://www.jianshu.com/p/5365ef83252a
@@ -65,22 +67,16 @@ class OpenApiDocMiddleware(BaseMiddleware):
         self.redoc_url = redoc_url
         self.swagger_url = swagger_url
         self.servers = servers or []
+        self.swagger_ui_oauth2_init = swagger_ui_oauth2_init
+        self.swagger_ui_oauth2_redirect_url = swagger_ui_oauth2_redirect_url
         super(OpenApiDocMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
 
     @AsLazyProperty
     def title(self) -> t.Text:
-        """ Api文档标题
-
-        @return: t.Text:
-        """
         return self._title or self.producer.container.service.name
 
     @AsLazyProperty
     def description(self) -> t.Text:
-        """ Api文档描述
-
-        @return: t.Text
-        """
         return self._description or self.producer.container.service.desc
 
     @AsLazyProperty
@@ -92,38 +88,36 @@ class OpenApiDocMiddleware(BaseMiddleware):
         collect_routers = []
         service = self.producer.container.service
         mapping = service.router_mapping
-        all_ext = self.producer.all_extensions
-        for ext in all_ext:
+        # 遍历所有注册在producer的consumers
+        for ext in self.producer.all_extensions:
             ident = ext.object_name
-            if ident not in mapping:
-                continue
-            target = mapping[ident]
-            router = Router(ident, ext, target)
+            method = mapping[ident]
+            router = Router(ident, ext, method)
             collect_routers.append(router)
         return collect_routers
 
     @AsLazyProperty
-    def redoc_payload(self) -> t.Text:
-        """ redoc响应载体
-
-        @return: t.Text
-        """
-        return get_redoc_payload()
+    def redoc_ui_html(self) -> t.Text:
+        return get_redoc_html(
+            title=self.title + ' - Redoc',
+            openapi_url=self.openapi_url,
+        )
 
     @AsLazyProperty
-    def swagger_payload(self) -> t.Text:
-        """ swagger响应载体
+    def swagger_ui_html(self) -> t.Text:
+        return get_swagger_ui_html(
+            openapi_url=self.openapi_url,
+            title=self.title + ' - Swagger UI',
+            oauth2_init=self.swagger_ui_oauth2_init,
+            oauth2_redirect_url=self.swagger_ui_oauth2_redirect_url
+        )
 
-        @return: t.Text
-        """
-        return get_swagger_payload()
+    @AsLazyProperty
+    def swagger_ui_oauth2_redirect_html(self):
+        return get_swagger_ui_oauth2_redirect_html()
 
     @AsLazyProperty
     def openapi_payload(self) -> t.Text:
-        """ OpenApi响应载体
-
-        @return: t.Text
-        """
         kwargs = {'title': self.title,
                   'routers': self.routes,
                   'version': self.version,
@@ -143,10 +137,10 @@ class OpenApiDocMiddleware(BaseMiddleware):
         request = Request(environ)
         if request.path == self.redoc_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
-            return [self.redoc_payload]
+            return [self.redoc_ui_html]
         if request.path == self.swagger_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
-            return [self.swagger_payload]
+            return [self.swagger_ui_html]
         if request.path == self.openapi_url:
             start_response('200 Ok', [('Content-Type', 'application/json')])
             return [self.openapi_payload]

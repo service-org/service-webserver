@@ -4,62 +4,61 @@
 
 from __future__ import annotations
 
+import enum
 import re
 import typing as t
 
+from collections import namedtuple
+from pydantic.fields import BaseModel
+from pydantic.fields import ModelField
 from pydantic.schema import field_schema
+from pydantic.schema import TypeModelSet
 from service_green.core.green import cjson
+from pydantic.schema import TypeModelOrEnum
 from pydantic.schema import get_model_name_map
+from pydantic.schema import model_process_schema
 from service_webserver.core.openapi import params
 from pydantic.schema import get_flat_models_from_fields
-from service_webserver.core.openapi.models import OpenAPI
-from service_webserver.core.openapi.constants import REF_PREFIX
-from service_webserver.core.openapi.encoder import jsonable_encoder
-from service_webserver.core.openapi.helper import get_flat_dependant
-
-if t.TYPE_CHECKING:
-    # https://swagger.io/specification/#paths-object
-    OpenApiPath = t.Dict[t.Text, t.Any]
-    OpenApiPathDefinitions = t.Dict[t.Text, t.Any]
-    # https://swagger.io/specification/#components-object
-    OpenApiSecuritySchemes = t.Dict[t.Text, t.Any]
-
-from collections import namedtuple
+from service_webserver.core.inspection.models import OpenAPI
+from service_webserver.core.openapi import get_flat_dependent
+from service_webserver.core.inspection.depent import Dependent
+from service_webserver.constants import DEFAULT_DEFINITIONS_REF_PREFIX
 
 Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
 
 __all__ = ['get_openapi_payload']
 
 
-def gen_openapi_metas(router: Router, method: t.Text) -> t.Dict[t.Text, t.Any]:
-    """ 生成openapi元数据
+def gen_openapi_operation_metadata(*, router: Router, method: t.Text) -> t.Dict[t.Text, t.Any]:
+    """ 生成openapi操作元数据
 
     @param router: 路由对象
     @param method: 请求方法
     @return: t.Text
     """
-    openapi_metas_data, method = {}, method.lower()
+    openapi_operation_metadata, method = {}, method.lower()
     if router.entrypoint.operation_id:
         operation_id = router.entrypoint.operation_id + '_' + method
-        openapi_metas_data['operation_id'] = operation_id
+        openapi_operation_metadata['operation_id'] = operation_id
     if router.entrypoint.deprecated:
-        openapi_metas_data['deprecated'] = router.entrypoint.deprecated
+        openapi_operation_metadata['deprecated'] = router.entrypoint.deprecated
     if router.entrypoint.tags:
-        openapi_metas_data['tags'] = router.entrypoint.tags
+        openapi_operation_metadata['tags'] = router.entrypoint.tags
     if router.entrypoint.description:
-        openapi_metas_data['description'] = router.entrypoint.description
+        openapi_operation_metadata['description'] = router.entrypoint.description
     if router.entrypoint.summary:
-        openapi_metas_data['summary'] = router.entrypoint.summary
-    return openapi_metas_data
+        openapi_operation_metadata['summary'] = router.entrypoint.summary
+    return openapi_operation_metadata
 
-def get_flat_params(dependant):
-    flat_dependant = get_flat_dependant(dependant)
-    return (
-        flat_dependant.path_params
-        + flat_dependant.query_params
-        + flat_dependant.header_params
-        + flat_dependant.cookie_params
-    )
+
+def get_openapi_security_definitions(
+        flat_dependent: Dependent
+) -> t.Tuple[t.Dict[t.Text, t.Any], t.List[t.Dict[t.Text, t.Any]]]:
+    """
+
+    @param flat_dependent:
+    @return:
+    """
 
 
 def get_openapi_operation_params(*, all_route_params):
@@ -85,7 +84,9 @@ def get_openapi_operation_params(*, all_route_params):
     return parameters
 
 
-def get_openapi_paths(router: Router) -> t.Tuple[OpenApiPath, OpenApiPathDefinitions, OpenApiSecuritySchemes]:
+def get_openapi_path(
+        router: Router
+) -> t.Tuple[t.Dict[t.Text, t.Any], t.Dict[t.Text, t.Any], t.Dict[t.Text, t.Any]]:
     """ 获取openapi路径
 
     @param router: 路由对象
@@ -99,12 +100,13 @@ def get_openapi_paths(router: Router) -> t.Tuple[OpenApiPath, OpenApiPathDefinit
         return path, path_definitions, security_schemes
     else:
         response_class = router.entrypoint.response_class
-        # response_mimetype = response_class.mimetype
+        response_media_type = response_class.mimetype
     for method in router.entrypoint.methods:
-        operator = gen_openapi_metas(router, method)
+        operation_metadata = gen_openapi_operation_metadata(router=router, method=method)
         parameters: t.List[t.Dict[t.Text, t.Any]] = []
-        # flat_dependant = get_flat_dependant(router.entrypoint.dependant)
-        all_route_params = get_flat_params(router.entrypoint.dependant)
+        flat_dependent = get_flat_dependent(router.entrypoint.dependent, skip_repeats=True)
+        security_definitions, operation_security =
+        all_route_params = get_flat_params(router.entrypoint.dependent)
         operation_params = get_openapi_operation_params(all_route_params=all_route_params)
         parameters.extend(operation_params)
         if parameters:
@@ -115,30 +117,86 @@ def get_openapi_paths(router: Router) -> t.Tuple[OpenApiPath, OpenApiPathDefinit
     return path, security_schemes, path_definitions
 
 
-def get_flat_models_from_routers(routes):
-    body_fields = []
-    responses = []
-    request_fields = []
-    for route in routes:
-        name, entrypoint, view = route.name, route.entrypoint, route.view
+def get_flat_params(dependent: Dependent) -> t.List[ModelField]:
+    """ 从依赖对象获取扁平化参数
+
+    @param dependent: 依赖对象
+    @return: t.List[ModelField]
+    """
+    flat_dependent = get_flat_dependent(dependent, skip_repeats=True)
+    return (
+            flat_dependent.path_fields
+            + flat_dependent.query_fields
+            + flat_dependent.header_fields
+            + flat_dependent.cookie_fields
+    )
+
+
+def get_flat_models_from_routers(routers: t.Sequence[Router]) -> t.Set[t.Union[t.Type[BaseModel], t.Type[enum.Enum]]]:
+    """ 从路由中获取所有的模型
+
+    @param routers: 路由列表
+    @return: t.Set[t.Union[t.Type[BaseModel], t.Type[enum.Enum]]]
+    """
+    all_fields_from_routers: t.List[ModelField] = []
+    body_fields_from_routers: t.List[ModelField] = []
+    request_fields_from_routers: t.List[ModelField] = []
+    response_fields_from_routers: t.List[ModelField] = []
+    for router in routers:
+        entrypoint = router.entrypoint
         if not entrypoint.include_in_doc:
             continue
         if entrypoint.body_field:
-            body_fields.append(entrypoint.body_field)
+            fields = entrypoint.body_field
+            body_fields_from_routers.append(fields)
         if entrypoint.response_field:
-            request_fields.append(entrypoint.response_field)
-        params = get_flat_params(entrypoint.dependant)
-        request_fields.extend(params)
-    return get_flat_models_from_fields(body_fields + responses + request_fields)
+            fields = entrypoint.response_field
+            response_fields_from_routers.append(fields)
+        if entrypoint.other_response_fields:
+            fields = entrypoint.other_response_fields.values()
+            response_fields_from_routers.extend(fields)
+        request_fields = get_flat_params(entrypoint.dependent)
+        request_fields_from_routers.extend(request_fields)
+    all_fields_from_routers += body_fields_from_routers
+    all_fields_from_routers += request_fields_from_routers
+    all_fields_from_routers += response_fields_from_routers
+    return get_flat_models_from_fields(
+        all_fields_from_routers, known_models=set()
+    )
 
 
-def get_openapi_payload(title: t.Text,
-                        routers: t.Sequence[Router],
-                        description: t.Text = '',
-                        version: t.Text = '0.0.1',
-                        openapi_version: t.Text = '3.0.3',
-                        api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
-                        servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None):
+def get_model_definitions(
+        flat_models: TypeModelSet,
+        model_name_map: Dict[TypeModelOrEnum, t.Text]
+) -> t.Dict[t.Text, t.Any]:
+    """ 从扁平模型获取模型定义
+
+    @param flat_models: 模型集合
+    @param model_name_map: 名称映射
+    @return: t.Dict[t.Text, t.Any]
+    """
+    definitions: t.Dict[t.Text, t.Any] = {}
+    for model in flat_models:
+        r = model_process_schema(
+            model, model_name_map=model_name_map,
+            ref_prefix=DEFAULT_DEFINITIONS_REF_PREFIX
+        )
+        m_schema, m_definitions, m_nested_models = r
+        definitions.update(m_definitions)
+        model_name = model_name_map[model]
+        definitions[model_name] = m_schema
+    return definitions
+
+
+def get_openapi_payload(
+        title: t.Text,
+        routers: t.Sequence[Router],
+        description: t.Text = '',
+        version: t.Text = '0.0.1',
+        openapi_version: t.Text = '3.0.3',
+        api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
+        servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None
+) -> t.Text:
     """ 获取openapi载体 """
     # https://swagger.io/specification/#info-object
     info = {'title': title, 'version': version}
@@ -152,17 +210,14 @@ def get_openapi_payload(title: t.Text,
     # https://swagger.io/specification/#paths-object
     paths: t.Dict[t.Text, t.Dict[t.Text, t.Any]] = {}
     # 主要用于查找所有定义的模型
-    flat_models = {}
-    model_name_map = {}
-    definitions = {}
+    flat_models = get_flat_models_from_routers(routers)
+    model_name_map = get_model_name_map(flat_models)
+    definitions = get_model_definitions(flat_models, model_name_map)
     for router in routers:
-        name, entrypoint, view = router.name, router.entrypoint, router.view
-        print('!' * 100)
-        print(entrypoint.dependant)
-        print('!' * 100)
-        result = get_openapi_paths(router)
-        if result:
-            path, security_schemes, path_definitions = result
+        entrypoint = router.entrypoint
+        path_data = get_openapi_path(router)
+        if path_data:
+            path, security_schemes, path_definitions = path_data
             if path:
                 paths.setdefault(entrypoint.path, {}).update(path)
             if security_schemes:
