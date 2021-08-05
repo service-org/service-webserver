@@ -22,6 +22,7 @@ from pydantic.typing import NoArgAnyCallable
 from service_core.core.service import Service
 from pydantic.class_validators import Validator
 from pydantic.typing import evaluate_forwardref
+from pydantic.schema import get_annotation_from_field_info
 
 from .request import Request
 from .response import Response
@@ -93,6 +94,15 @@ def gen_model_field(
         field_info=field_info
     )
 
+def is_scalar_field(field: ModelField) -> bool:
+    """ 是否为普通字段
+
+    @param field: 模型字段
+    @return: bool
+    """
+    pass
+
+
 def gen_param_field(
         *,
         param: Parameter,
@@ -111,16 +121,33 @@ def gen_param_field(
     @return: ModelField
     """
     default_value = Required
-    default_field_info = default_field_info or params.Param
     if param.default != param.empty and not ignore_default_val:
         default_value = param.default
+    default_field_info = default_field_info or params.Param
     if isinstance(default_value, FieldInfo):
         field_info = default_value
         default_value = field_info.default
+        was_params = isinstance(field_info, params.Param)
+        has_inattr = getattr(field_info, 'in_', None) is None
+        was_others = was_params and has_inattr
+        was_others and setattr(field_info, 'in_', default_field_info.in_)
+        param_type and setattr(field_info, 'in_', param_type)
+    else:
+        field_info = default_field_info(default_value)
+    required = default_value == Required
+    annotation = param.annotation if param.annotation != param.empty else t.Any
+    annotation = get_annotation_from_field_info(annotation, field_info, param_name)
+    if not field_info.alias and getattr(field_info, "convert_underscores", None):
+        alias = param.name.replace('_', '-')
+    else:
+        alias = field_info.alias or param.name
+    default = None if required else default_value
+    model_field = gen_model_field(
+        name=param.name, type_=annotation, default=default, alias=alias, required=required,
+        field_info=field_info
+    )
+    model_field.required = required
 
-        if (isinstance(field_info, params.Param)
-            and
-            getattr(field_info, 'in_', None) is None):
 
 
 
@@ -163,9 +190,9 @@ def get_sub_dependant_from_call(
         security_scopes.extend(depended.scopes)
     # 当默认值的dependant是SecurityBase子类实例
     if isinstance(call, SecurityBase):
-        authes = (OAuth2, OpenIdConnect)
+        auths = (OAuth2, OpenIdConnect)
         # 除了OAuth2和OpenIdConnect认证需要scopes其它的不需要
-        scopes = security_scopes if isinstance(call, authes) else []
+        scopes = security_scopes if isinstance(call, auths) else []
         # 构建一个新的SecurityScheme,不要尝试去直接赋值security_scopes
         security_scheme = SecurityScheme(scheme=call, scopes=scopes)
     # 递归构建依赖树并自动挂载到上级依赖对象的dependencies上
@@ -290,13 +317,13 @@ def get_dependant_from_call(
     # 创建一个当前依赖对象
     dependant = Dependant(name=name, path=path, call=call, use_cache=use_cache)
     for param_name, param in call_signature.parameters.items():
-        # 当参数的注解为特定类例如Request,Response,Service,scopes忽略
-        if add_non_param_to_dependent(param=param, dependant=dependant):
-            continue
         # 当参数值为依赖对象时,递归解析其dependant并将其注入到当前依赖对象
         if isinstance(param.default, params.Depended):
             sub_dependant = get_sub_dependant_from_param(
                 param=param, path=path, security_scopes=security_scopes)
             dependant.dependencies.append(sub_dependant)
+            continue
+        # 当参数的注解为特定类例如Request,Response,Service,scopes忽略
+        if add_non_param_to_dependent(param=param, dependant=dependant):
             continue
     return dependant
