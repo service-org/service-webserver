@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-import enum
-import inspect
 import re
 import sys
 import http
+import enum
+import inspect
 import eventlet
 import typing as t
 import werkzeug.exceptions
@@ -24,13 +24,14 @@ from service_core.core.context import WorkerContext
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
 from service_webserver.core.response import HtmlResponse
-from service_webserver.core.openapi import get_body_field
-from service_webserver.core.openapi import gen_model_field
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exchelper import gen_exception_description
-from service_webserver.core.openapi import get_dependent_from_call
 from service_webserver.core.convert import from_headers_to_context
+from service_webserver.core.openapi3.generate.depent.models import Dependent
+from service_webserver.core.openapi3.generate.depent.helper import get_dependent
+from service_webserver.core.openapi3.generate.depent.field import gen_model_field
+from service_webserver.core.openapi3.generate.depent.helper import get_body_field
 
 from .producer import ReqProducer
 
@@ -87,9 +88,7 @@ class ReqConsumer(Entrypoint):
         # 响应配置 - 指定响应类构建响应
         self.response_class = response_class
         # Api配置 - 构建OpenApi的文档
-        self.dependent = None
         self.tags = tags or []
-        self._body_field = None
         self._summary = summary
         self._description = description
         self._operation_id = operation_id
@@ -127,8 +126,7 @@ class ReqConsumer(Entrypoint):
 
     @AsLazyProperty
     def endpoint(self) -> t.Callable[..., t.Any]:
-        router_mapping = self.container.service.router_mapping
-        return router_mapping[self.object_name]
+        return self.container.service.router_mapping[self.object_name]
 
     @AsLazyProperty
     def summary(self) -> t.Text:
@@ -153,16 +151,16 @@ class ReqConsumer(Entrypoint):
         return f'Response_{self.operation_id}'
 
     @AsLazyProperty
+    def dependent(self) -> Dependent:
+        return get_dependent(path=self.path, call=self.endpoint, name=self.summary)
+
+    @AsLazyProperty
     def body_field(self) -> t.Optional[ModelField]:
-        return self._body_field
+        return get_body_field(dependent=self.dependent, name=self.operation_id)
 
     @AsLazyProperty
     def response_field(self) -> t.Optional[ModelField]:
         return gen_model_field(name=self.response_name, type_=self.response_model) if self.response_model else None
-
-    @AsLazyProperty
-    def response_field_cloned(self) -> t.Optional[ModelField]:
-        return None
 
     @AsLazyProperty
     def rule(self) -> Rule:
@@ -178,10 +176,6 @@ class ReqConsumer(Entrypoint):
 
         @return: None
         """
-        # 在service container初始化完毕后对endpoint分析生成依赖树并构建body字段
-        self.dependent = get_dependent_from_call(path=self.path, call=self.endpoint, name=self.summary)
-        self._body_field = get_body_field(dependent=self.dependent, name=self.operation_id)
-
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})

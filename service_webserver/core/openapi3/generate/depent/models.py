@@ -7,16 +7,14 @@ from __future__ import annotations
 import typing as t
 
 from pydantic.fields import ModelField
-
-from .security.base import SecurityScheme
+from service_webserver.core.openapi3.security.scheme import SecurityScheme
 
 
 class Dependent(object):
     """ 通用依赖注入类 """
 
     def __init__(
-            self,
-            *,
+            self, *,
             use_cache: bool = True,
             name: t.Optional[t.Text] = None,
             path: t.Optional[t.Text] = None,
@@ -70,4 +68,4 @@ class Dependent(object):
         self.security_schemes = security_schemes or []
         self.security_scopes_field_name = security_scopes_field_name
         ordered_security_scopes = sorted(set(self.security_scopes))
-        self.cache_key = (self.call, tuple(ordered_security_scopes))
+        self.ident = (self.call, tuple(ordered_security_scopes))

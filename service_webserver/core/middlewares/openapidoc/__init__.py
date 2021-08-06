@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import typing as t
 
-from collections import namedtuple
 from werkzeug.wrappers import Request
 from service_core.core.decorator import AsLazyProperty
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.core.middlewares.base import Middleware
+from service_webserver.core.openapi3.generate.assets import get_redoc_html
+from service_webserver.core.openapi3.generate.assets import get_swagger_ui_html
+from service_webserver.core.openapi3.generate.assets import get_swagger_ui_oauth2_redirect_html
 
 if t.TYPE_CHECKING:
     # 由于其定义在存根文件所以需要在TYPE_CHECKING下
@@ -18,12 +20,7 @@ if t.TYPE_CHECKING:
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
 
-from .asserts import get_redoc_html
-from .openapi import get_openapi_payload
-from .asserts import get_swagger_ui_html
-from .asserts import get_swagger_ui_oauth2_redirect_html
-
-Router = namedtuple('Router', ['name', 'entrypoint', 'view'])
+from .generate import get_openapi_json
 
 
 class OpenApiDocMiddleware(Middleware):
@@ -34,7 +31,7 @@ class OpenApiDocMiddleware(Middleware):
             title: t.Text = '', description: t.Text = '',
             version: t.Text = '0.0.1',
             openapi_version: t.Text = '3.0.3',
-            openapi_url: t.Optional[t.Text] = '/openapi.json',
+            openapi_url: t.Optional[t.Text] = '/openapi3.json',
             api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
             redoc_url: t.Optional[t.Text] = '/redoc',
             swagger_url: t.Optional[t.Text] = '/swagger',
@@ -80,23 +77,6 @@ class OpenApiDocMiddleware(Middleware):
         return self._description or self.producer.container.service.desc
 
     @AsLazyProperty
-    def routes(self) -> t.List[Router]:
-        """ 已注册路由表
-
-        @return: t.Dict[t.Text, t.Callable]
-        """
-        collect_routers = []
-        service = self.producer.container.service
-        mapping = service.router_mapping
-        # 遍历所有注册在producer的consumers
-        for ext in self.producer.all_extensions:
-            ident = ext.object_name
-            method = mapping[ident]
-            router = Router(ident, ext, method)
-            collect_routers.append(router)
-        return collect_routers
-
-    @AsLazyProperty
     def redoc_ui_html(self) -> t.Text:
         return get_redoc_html(
             title=self.title + ' - Redoc',
@@ -117,15 +97,17 @@ class OpenApiDocMiddleware(Middleware):
         return get_swagger_ui_oauth2_redirect_html()
 
     @AsLazyProperty
-    def openapi_payload(self) -> t.Text:
-        kwargs = {'title': self.title,
-                  'routers': self.routes,
-                  'version': self.version,
-                  'servers': self.servers,
-                  'api_tags': self.api_tags,
-                  'description': self.description,
-                  'openapi_version': self.openapi_version}
-        return get_openapi_payload(**kwargs)
+    def openapi_json(self) -> t.Text:
+        routers = self.producer.all_extensions
+        return get_openapi_json(
+            title=self.title,
+            routers=routers,
+            description=self.description,
+            version=self.version,
+            api_tags=self.api_tags,
+            servers=self.servers,
+            openapi_version=self.openapi_version,
+        )
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器
@@ -143,5 +125,5 @@ class OpenApiDocMiddleware(Middleware):
             return [self.swagger_ui_html]
         if request.path == self.openapi_url:
             start_response('200 Ok', [('Content-Type', 'application/json')])
-            return [self.openapi_payload]
+            return [self.openapi_json]
         return self.wsgi_app(environ, start_response)

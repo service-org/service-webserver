@@ -213,12 +213,12 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         """
         fun = self.handle_request
         tid = f'{self}.self_handle_request'
+        target_string = f'{self.listen_host}:{self.listen_port}'
         while not self.stopped:
             try:
-                # TODO: windows终端下ctrl+c事件似乎并未及时被调度而有的请求时才被唤醒
+                # TODO: windows终端下ctrl+c事件似乎并未及时被调度而回车时才被唤醒
                 client, addr = self.wsgi_socket.accept()
                 source_string = f'{addr[0]}:{addr[1]}'
-                target_string = f'{self.listen_host}:{self.listen_port}'
                 logger.debug(f'{source_string} connect to {target_string}')
                 client.settimeout(self.wsgi_server.socket_timeout)
                 args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
