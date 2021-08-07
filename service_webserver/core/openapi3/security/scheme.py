@@ -12,6 +12,7 @@ __all__ = ['SecurityScheme']
 
 
 class SecurityScheme(object):
+    """ 认证方案收集类 """
     def __init__(self, scheme: BaseSecurity, scopes: t.Optional[t.Sequence[t.Text]] = None) -> None:
         """ 初始化实例
 

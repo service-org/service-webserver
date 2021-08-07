@@ -25,7 +25,7 @@ def gen_openapi_security_definitions(
     security_scopes: t.List[t.Dict[t.Text, t.Any]] = []
     for security_scheme in flat_dependent.security_schemes:
         security_definition = jsonable_encoder(security_scheme.scheme.model,
-                                               by_alias=True, exclude_none=True)
+                                               exclude_none=True)
         security_name = security_scheme.scheme.scheme_name
         security_definitions[security_name] = security_definition
         security_scopes.append({security_name: security_scheme.scopes})
@@ -34,7 +34,7 @@ def gen_openapi_security_definitions(
 
 def gen_openapi_model_definitions(
         flat_models: TypeModelSet,
-        model_name_map: Dict[TypeModelOrEnum, t.Text]
+        model_name_map: t.Dict[TypeModelOrEnum, t.Text]
 ) -> t.Dict[t.Text, t.Any]:
     """ 从扁平模型获取模型定义
 

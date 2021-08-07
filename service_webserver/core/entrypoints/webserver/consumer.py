@@ -6,9 +6,7 @@ from __future__ import annotations
 
 import re
 import sys
-import http
 import enum
-import inspect
 import eventlet
 import typing as t
 import werkzeug.exceptions
@@ -27,6 +25,7 @@ from service_webserver.core.response import HtmlResponse
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exchelper import gen_exception_description
+from service_webserver.core.default import DefaultResponseModel
 from service_webserver.core.convert import from_headers_to_context
 from service_webserver.core.openapi3.generate.depent.models import Dependent
 from service_webserver.core.openapi3.generate.depent.helper import get_dependent
@@ -59,7 +58,7 @@ class ReqConsumer(Entrypoint):
             operation_id: t.Optional[t.Text] = None,
             response_class: t.Type[Response] = None,
             response_description: t.Text = 'Successful Response',
-            response_model: t.Optional[t.Type[t.Any]] = None,
+            response_model: t.Optional[t.Type[t.Any]] = DefaultResponseModel,
             include_in_doc: t.Optional[bool] = True,
             other_response: t.Optional[t.Dict[t.Union[int, t.Text], t.Dict[t.Text, t.Any]]] = None,
             **options
@@ -121,45 +120,50 @@ class ReqConsumer(Entrypoint):
 
     @AsLazyProperty
     def path(self) -> t.Text:
+        """ 规范路径 """
         repl = lambda m: '{' + m.group(1) + '}'
         return re.sub(r'<[^:>]*:([^>]*)>', repl, self.raw_url)
 
     @AsLazyProperty
-    def endpoint(self) -> t.Callable[..., t.Any]:
-        return self.container.service.router_mapping[self.object_name]
-
-    @AsLazyProperty
     def summary(self) -> t.Text:
-        return self._summary or self.object_name
-
-    @AsLazyProperty
-    def description(self) -> t.Text:
-        if self._description is not None:
-            description = self._description
-        else:
-            method = self.endpoint
-            doc = method.__doc__ or ''
-            description = inspect.getdoc(doc)
-        return description
+        """ 接口简述 """
+        data = self._summary or self.object_name
+        desc = self.description.split(maxsplit=1)[0].strip()
+        return f'{data} - {desc}' if desc else data
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
+        """ 操作标识 """
         return re.sub(r'[^0-9a-zA-Z_]', '_', self.path)
 
     @AsLazyProperty
     def response_name(self) -> t.Text:
+        """ 响应名称 """
         return f'Response_{self.operation_id}'
 
     @AsLazyProperty
+    def description(self) -> t.Text:
+        """ 接口描述 """
+        return self._description or self.endpoint.__doc__
+
+    @AsLazyProperty
+    def endpoint(self) -> t.Callable[..., t.Any]:
+        """ 视图函数 """
+        return self.container.service.router_mapping[self.object_name]
+
+    @AsLazyProperty
     def dependent(self) -> Dependent:
+        """ 依赖对象 """
         return get_dependent(path=self.path, call=self.endpoint, name=self.summary)
 
     @AsLazyProperty
     def body_field(self) -> t.Optional[ModelField]:
+        """ body字段 """
         return get_body_field(dependent=self.dependent, name=self.operation_id)
 
     @AsLazyProperty
     def response_field(self) -> t.Optional[ModelField]:
+        """ 响应字段 """
         return gen_model_field(name=self.response_name, type_=self.response_model) if self.response_model else None
 
     @AsLazyProperty
@@ -196,7 +200,7 @@ class ReqConsumer(Entrypoint):
         @return: t.Tuple[t.Any, t.Dict, HttpStatus]
         """
         headers = None
-        status = http.HTTPStatus.OK.value
+        status = HTTPStatus.OK.value
         if not isinstance(results, tuple):
             payload = results
         else:
@@ -310,7 +314,7 @@ class WebReqConsumer(ReqConsumer):
         if hasattr(werkzeug.exceptions, exc_name):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
-            status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+            status = HTTPStatus.INTERNAL_SERVER_ERROR.value
         data = gen_exception_description(exc_value)
         original = data['original']
         original = f'{original} -' if original else original
@@ -378,7 +382,7 @@ class ApiReqConsumer(ReqConsumer):
         if hasattr(werkzeug.exceptions, exc_name):
             status = getattr(werkzeug.exceptions, exc_name).code
         else:
-            status = http.HTTPStatus.INTERNAL_SERVER_ERROR.value
+            status = HTTPStatus.INTERNAL_SERVER_ERROR.value
         data, call_id = None, context.worker_request_id
         errs = gen_exception_description(exc_value)
         payload = {'code': status, 'errs': errs, 'data': None, 'call_id': call_id}

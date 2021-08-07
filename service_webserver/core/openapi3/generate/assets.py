@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-import json
 import typing as t
 
-from service_webserver.core.encoder import jsonable_encoder
+from service_green.core.green import cjson
+from service_webserver.core.openapi3.encoder import jsonable_encoder
 
 SWAGGER_UI_OAUTH2_REDIRECT_HTML = """
 <!DOCTYPE html>
@@ -144,7 +144,7 @@ def get_swagger_ui_html(
     })"""
     if oauth2_init:
         html += f"""
-        ui.initOAuth({json.dumps(jsonable_encoder(oauth2_init))})
+        ui.initOAuth({cjson.dumps(jsonable_encoder(oauth2_init))})
         """
     html += """
     </script>

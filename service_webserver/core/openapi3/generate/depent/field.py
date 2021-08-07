@@ -10,9 +10,11 @@ from pydantic import BaseConfig
 from pydantic.fields import Undefined
 from pydantic.fields import FieldInfo
 from pydantic.fields import ModelField
-from pydantic.fields import BoolUndefined
 from pydantic.typing import NoArgAnyCallable
 from pydantic.class_validators import Validator
+
+if t.TYPE_CHECKING:
+    from pydantic.fields import BoolUndefined
 
 
 def gen_model_field(

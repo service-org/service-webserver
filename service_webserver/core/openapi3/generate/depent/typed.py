@@ -22,7 +22,7 @@ def get_typed_annotation(param: Parameter, *, global_ns: t.Dict[t.Text, t.Any]) 
     @return: t.Any
     """
     annotation = param.annotation
-    annotation = ForwardRef(annotation) if isinstance(annotation, t.Text) else annotation
+    annotation = ForwardRef(annotation) if isinstance(annotation, str) else annotation
     # 通过其全局命名空间反射
     to_object = partial(evaluate_forwardref, globalns=global_ns, localns=global_ns)
     return to_object(annotation) if isinstance(annotation, ForwardRef) else annotation
@@ -44,6 +44,6 @@ def get_typed_signature(call: t.Callable[..., t.Any]) -> inspect.Signature:
     parameters = [inspect.Parameter(name=p.name,
                                     kind=p.kind,
                                     default=p.default,
-                                    annotation=to_object(p.annotation)
+                                    annotation=to_object(p)
                                     ) for p in signature.parameters.values()]
     return inspect.Signature(parameters=parameters)

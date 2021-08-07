@@ -9,7 +9,7 @@ import typing as t
 from werkzeug.wrappers import Request
 from service_core.core.decorator import AsLazyProperty
 from service_core.core.service.entrypoint import Entrypoint
-from service_webserver.core.middlewares.base import Middleware
+from service_webserver.core.middlewares.base import BaseMiddleware
 from service_webserver.core.openapi3.generate.assets import get_redoc_html
 from service_webserver.core.openapi3.generate.assets import get_swagger_ui_html
 from service_webserver.core.openapi3.generate.assets import get_swagger_ui_oauth2_redirect_html
@@ -23,7 +23,7 @@ if t.TYPE_CHECKING:
 from .generate import get_openapi_json
 
 
-class OpenApiDocMiddleware(Middleware):
+class OpenApiDocMiddleware(BaseMiddleware):
     """ OpenApi doc 中间件类 """
 
     def __init__(
@@ -70,14 +70,17 @@ class OpenApiDocMiddleware(Middleware):
 
     @AsLazyProperty
     def title(self) -> t.Text:
+        """ 文档标题 """
         return self._title or self.producer.container.service.name
 
     @AsLazyProperty
     def description(self) -> t.Text:
+        """ 文档描述 """
         return self._description or self.producer.container.service.desc
 
     @AsLazyProperty
     def redoc_ui_html(self) -> t.Text:
+        """ redoc网页 """
         return get_redoc_html(
             title=self.title + ' - Redoc',
             openapi_url=self.openapi_url,
@@ -85,6 +88,7 @@ class OpenApiDocMiddleware(Middleware):
 
     @AsLazyProperty
     def swagger_ui_html(self) -> t.Text:
+        """ swagger网页 """
         return get_swagger_ui_html(
             openapi_url=self.openapi_url,
             title=self.title + ' - Swagger UI',
@@ -94,10 +98,12 @@ class OpenApiDocMiddleware(Middleware):
 
     @AsLazyProperty
     def swagger_ui_oauth2_redirect_html(self):
+        """ swagger oauth2 跳转页 """
         return get_swagger_ui_oauth2_redirect_html()
 
     @AsLazyProperty
     def openapi_json(self) -> t.Text:
+        """ /openapi.json内容 """
         routers = self.producer.all_extensions
         return get_openapi_json(
             title=self.title,

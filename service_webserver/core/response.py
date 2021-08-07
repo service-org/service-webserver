@@ -7,10 +7,9 @@ from __future__ import annotations
 import html
 import typing as t
 
-from eventlet.green import http
+from http import HTTPStatus
 from werkzeug.urls import iri_to_uri
 from werkzeug.wsgi import FileWrapper
-from eventlet.green.http import HTTPStatus
 from service_green.core.green import cjson
 from werkzeug.utils import get_content_type
 from werkzeug.wrappers.response import Response as BaseResponse
@@ -44,7 +43,7 @@ class Response(BaseResponse):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[str] = None,
             content_type: t.Optional[str] = None,
@@ -72,7 +71,7 @@ class HtmlResponse(Response):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[str] = None,
             content_type: t.Optional[str] = None,
@@ -97,7 +96,7 @@ class JsonResponse(Response):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[str] = None,
             content_type: t.Optional[str] = None,
@@ -124,7 +123,7 @@ class PlainTextResponse(Response):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[str] = None,
             content_type: t.Optional[str] = None,
@@ -151,7 +150,7 @@ class RedirectResponse(Response):
             self,
             location: t.Text,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.TEMPORARY_REDIRECT.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[t.Text] = None,
             content_type: t.Optional[t.Text] = None,
@@ -169,7 +168,6 @@ class RedirectResponse(Response):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
-        status = status or http.HTTPStatus.FOUND.value
         if isinstance(location, str):
             # Safe conversion is necessary here as we might redirect
             # to a broken URI scheme (for instance itms-services).
@@ -197,7 +195,7 @@ class StreamResponse(Response):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[t.Text] = None,
             content_type: t.Optional[t.Text] = None,
@@ -227,7 +225,7 @@ class FileResponse(Response):
     def __init__(
             self,
             response: HttpResponse = None,
-            status: HTTPStatus = None,
+            status: HTTPStatus = HTTPStatus.OK.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[t.Text] = None,
             content_type: t.Optional[t.Text] = None,

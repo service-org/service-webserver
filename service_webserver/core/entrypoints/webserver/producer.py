@@ -20,7 +20,7 @@ from eventlet.greenio.base import GreenSocket
 from service_core.core.decorator import AsFriendlyFunc
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
-from service_webserver.core.middlewares.base import Middleware
+from service_webserver.core.middlewares.base import BaseMiddleware
 from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
 from service_core.core.as_finder import load_dot_path_colon_obj
@@ -152,15 +152,17 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
                 logger.error(error_prefix_message + error)
                 continue
             if not inspect.isclass(middleware):
-                error = 'no subclass of Middleware'
+                error = 'no subclass of BaseMiddleware'
                 logger.error(error_prefix_message + error)
                 continue
-            if not issubclass(middleware, Middleware):
-                error = 'no subclass of Middleware'
+            if not issubclass(middleware, BaseMiddleware):
+                error = 'no subclass of BaseMiddleware'
                 logger.error(error_prefix_message + error)
                 continue
             logger.debug(f'load middleware {dotted_path} succ')
-            wsgi_app = middleware(wsgi_app=wsgi_app, producer=self, **config)
+            wsgi_app = middleware(
+                wsgi_app=wsgi_app, producer=self, **(config or {})
+            )
         return wsgi_app
 
     def create_wsgi_app(self) -> WSGIApplication:

@@ -19,6 +19,7 @@ DictIntStrAny = t.Dict[t.Union[int, str], t.Any]
 
 def generate_encoders_by_class_tuples(type_encoder_map: t.Dict[t.Any, t.Callable[[t.Any], t.Any]]
                                       ) -> t.Dict[t.Callable[[t.Any], t.Any], t.Tuple[t.Any, ...]]:
+    """ 根据类生成编码器 """
     encoders_by_class_tuples_ = defaultdict(tuple)
     for type_, encoder in type_encoder_map.items(): encoders_by_class_tuples_[encoder] += (type_,)
     return encoders_by_class_tuples_
@@ -38,6 +39,7 @@ def jsonable_encoder(
         custom_encoder: t.Optional[t.Dict[t.Any, t.Callable[[t.Any], t.Any]]] = None,
         sqlalchemy_safe: bool = True,
 ) -> t.Any:
+    """ 用编码器生成JSON """
     if include is not None and not isinstance(include, (set, dict)):
         include = set(include)
     if exclude is not None and not isinstance(exclude, (set, dict)):

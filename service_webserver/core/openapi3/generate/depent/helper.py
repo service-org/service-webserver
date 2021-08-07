@@ -9,7 +9,6 @@ import typing as t
 from inspect import _empty
 from inspect import Parameter
 from logging import getLogger
-from pydantic import BaseModel
 from pydantic import create_model
 from pydantic.fields import Required
 from pydantic.fields import FieldInfo

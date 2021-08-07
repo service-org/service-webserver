@@ -11,6 +11,7 @@ from service_webserver.core.openapi3.security.base import BaseSecurity
 
 
 class OpenIdConnect(BaseSecurity):
+    """ OpenIdConnect认证类 """
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         """ 初始化实例
 

@@ -15,7 +15,7 @@ if t.TYPE_CHECKING:
     from werkzeug.wsgi import WSGIEnvironment
     from werkzeug.wrappers.response import StartResponse
 
-from .base import Middleware
+from .base import BaseMiddleware
 
 # 字典头部
 HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
@@ -25,7 +25,7 @@ HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
 HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 
 
-class CorsHeaderMiddleware(Middleware):
+class CorsHeaderMiddleware(BaseMiddleware):
     """ 跨越配置中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,

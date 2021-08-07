@@ -15,7 +15,7 @@ if t.TYPE_CHECKING:
     from werkzeug.wrappers.response import StartResponse
 
 
-class Middleware(object):
+class BaseMiddleware(object):
     """ 中间件基类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:
