@@ -99,17 +99,20 @@ class ReqConsumer(Entrypoint):
         self.response_model = response_model
         self.other_response_fields = {}
         self.other_response = other_response or {}
-        for code, r in self.other_response.items():
-            as_dict = isinstance(r, dict)
-            as_dict or logger.error(f'{code} rsp must dict')
-            rsp_model = response_model = r.get('model')
-            if not response_model:
+        for code, response in self.other_response.items():
+            is_dict_response = isinstance(response, dict)
+            if not is_dict_response:
+                logger.error(f"{code}'s response must was dict")
                 continue
-            rsp_name = f'Response_{code}_{self.operation_id}'
-            rsp_field = gen_model_field(
-                name=rsp_name, type_=rsp_model
+            response_model = response.get('model')
+            if not response_model:
+                logger.error(f"{code}'s response must has model")
+                continue
+            response_name = f'Response_{code}_{self.operation_id}'
+            response_field = gen_model_field(
+                name=response_name, type_=response_model
             )
-            self.other_response_fields[code] = rsp_field
+            self.other_response_fields[code] = response_field
         self.include_in_doc = include_in_doc
         self.response_description = response_description
         super(ReqConsumer, self).__init__()
@@ -134,7 +137,8 @@ class ReqConsumer(Entrypoint):
     @AsLazyProperty
     def operation_id(self) -> t.Text:
         """ 操作标识 """
-        return re.sub(r'[^0-9a-zA-Z_]', '_', self.path)
+        op_id = re.sub(r'[^0-9a-zA-Z_]', '_', self.path)
+        return op_id.replace('__', '_').strip('_')
 
     @AsLazyProperty
     def response_name(self) -> t.Text:
