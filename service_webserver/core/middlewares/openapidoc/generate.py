@@ -10,7 +10,6 @@ from service_green.core.green import cjson
 from pydantic.schema import get_model_name_map
 from service_webserver.core.openapi3.models import OpenAPI
 from service_webserver.core.openapi3.encoder import jsonable_encoder
-from service_webserver.constants import DEFAULT_METHODS_THAT_SUPPORTED
 from service_webserver.core.entrypoints.webserver.consumer import ReqConsumer
 
 from .path import gen_openapi_path

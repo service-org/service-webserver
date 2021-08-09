@@ -23,4 +23,3 @@ DEFAULT_ALL_STATUS_CODE_RANGES = {
     '5XX': 'Server Error',
     'DEFAULT': 'Default Response',
 }
-DEFAULT_METHODS_THAT_SUPPORTED = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'CONNECT', 'HEAD', 'OPTIONS', 'TRACE']
