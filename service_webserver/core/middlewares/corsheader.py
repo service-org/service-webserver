@@ -28,8 +28,12 @@ HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 class CorsHeaderMiddleware(BaseMiddleware):
     """ 跨越配置中间件类 """
 
-    def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
-                 headers: t.Optional[t.Dict[t.Text, t.Text]] = None) -> None:
+    def __init__(
+            self, *,
+            wsgi_app: WSGIApplication,
+            producer: Entrypoint,
+            headers: t.Optional[t.Dict[t.Text, t.Text]] = None
+    ) -> None:
         """ 初始化实例
 
         @param wsgi_app: 应用程序

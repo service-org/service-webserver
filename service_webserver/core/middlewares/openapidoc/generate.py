@@ -31,7 +31,7 @@ def get_openapi_json(
     info = {'title': title, 'version': version}
     description and info.update({'description': description})
     # https://swagger.io/specification/#openapi-object
-    data = {'openapi': openapi_version, 'info': info}
+    data = {'openapi3': openapi_version, 'info': info}
     # https://swagger.io/specification/#server-object
     servers and data.update({'servers': servers})
     # https://swagger.io/specification/#components-object

@@ -326,7 +326,7 @@ class WebReqConsumer(ReqConsumer):
             f'<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">'
             f'<title>{status} {exc_type}</title>'
             f'<h1>{data["exc_type"]}</h1>'
-            f'<p>from {original}{data["exc_errs"]}</p>'
+            f'<p>{original}{data["exc_errs"]}</p>'
         )
         response_class = self.response_class or HtmlResponse
         return response_class(payload, status=status)

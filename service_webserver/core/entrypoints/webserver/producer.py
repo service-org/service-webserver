@@ -25,6 +25,7 @@ from service_core.core.service.extension import StoreExtension
 from service_core.core.as_finder import load_dot_path_colon_obj
 from service_webserver.core.middlewares.base import BaseMiddleware
 from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
+from service_webserver.core.middlewares.err_handler import ErrHandlerMiddleware
 
 if t.TYPE_CHECKING:
     # 由于其定义在存根文件所以需要在TYPE_CHECKING下
@@ -47,7 +48,6 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         @param kwargs: 命名参数
         """
         self.gt = None
-        self.connections = {}
         # 停止标志 - 是否停止
         self.stopped = False
         self.wsgi_server = None
@@ -146,8 +146,7 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         for dotted_path in self.middlewares:
             error, middleware = load_dot_path_colon_obj(dotted_path)
             middlewares[(dotted_path, (error, middleware))] = {}
-        else:
-            return middlewares
+        return middlewares
 
     def get_dict_middleware(
             self
@@ -160,8 +159,7 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         for dotted_path, config in self.middlewares.items():
             error, middleware = load_dot_path_colon_obj(dotted_path)
             middlewares[(dotted_path, (error, middleware))] = config or {}
-        else:
-            return middlewares
+        return middlewares
 
     def get_all_middlewares(
             self
@@ -211,7 +209,9 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         """
         wsgi_app = WsgiApp(self).wsgi_app
         # 加载配置文件中定义的中间件修饰返回新app
-        return self.set_all_middlewares(wsgi_app)
+        wsgi_app = self.set_all_middlewares(wsgi_app)
+        # 最外层加上异常处理防止其它中间件敏感泄漏
+        return ErrHandlerMiddleware(wsgi_app=wsgi_app, producer=self)
 
     def create_wsgi_server(self) -> wsgi.Server:
         """ 创建wsgi应用服务器
@@ -222,18 +222,6 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         # 根据配置选项中SSL选项判断是否启用HTTPS
         wsgi_socket = wrap_ssl(self.wsgi_socket, **self.ssl_options) if self.ssl_options else self.wsgi_socket
         return wsgi.Server(wsgi_socket, self.wsgi_socket.getsockname(), wsgi_app, **self.srv_options)
-
-    def _link_cleanup_connection(self, gt: GreenThread, connection: t.List):
-        """ 请求完成时回调函数
-
-        @param gt: 协程对象
-        @param connection: 连接对象
-        @return: None
-        """
-        connection[2] = wsgi.STATE_CLOSE
-        greenio.shutdown_safe(connection[1])
-        connection[1].close()
-        self.connections.pop(connection[0], None)
 
     def handle_request(self, addr: t.Tuple, client: GreenSocket, state: t.Text) -> None:
         """ 调用wsgi应用去处理
@@ -262,17 +250,12 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
                 source_string = f'{addr[0]}:{addr[1]}'
                 logger.debug(f'{source_string} connect to {target_string}')
                 client.settimeout(self.wsgi_server.socket_timeout)
-                args = self.connections[addr] = [addr, client, wsgi.STATE_IDLE]
-                gt = self.container.spawn_splits_thread(fun, args=args, tid=tid)
-                gt.link(self._link_cleanup_connection, self.connections[addr])
+                args = [addr, client, wsgi.STATE_IDLE]
+                self.container.spawn_splits_thread(fun, args=args, tid=tid)
                 # 优雅处理如ctrl + c, sys.exit, kill thread时的异常
             except (KeyboardInterrupt, SystemExit, GreenletExit):
                 break
             except:
                 # 应该避免其它未知异常中断当前处理器导致新的请求无法被调度
                 logger.error(f'unexpected error while accept connect', exc_info=True)
-        for connection in self.connections.values():
-            prev_state = connection[2]
-            connection[2] = wsgi.STATE_CLOSE
-            (prev_state != wsgi.STATE_CLOSE) and greenio.shutdown_safe(connection[1])
         logger.debug(f'wsgi server exited, is_accepting={not self.stopped}')
