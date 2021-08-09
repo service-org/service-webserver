@@ -20,10 +20,10 @@ from eventlet.greenio.base import GreenSocket
 from service_core.core.decorator import AsFriendlyFunc
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
-from service_webserver.core.middlewares.base import BaseMiddleware
 from service_core.core.service.extension import ShareExtension
 from service_core.core.service.extension import StoreExtension
 from service_core.core.as_finder import load_dot_path_colon_obj
+from service_webserver.core.middlewares.base import BaseMiddleware
 from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
 
 if t.TYPE_CHECKING:
@@ -38,7 +38,7 @@ logger = getLogger(__name__)
 class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
     """ 通用请求生产者类 """
 
-    name = 'Producer'
+    name = 'ReqProducer'
 
     def __init__(self, *args: t.Any, **kwargs: t.Any) -> None:
         """ 初始化实例
@@ -135,16 +135,55 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         """
         return Map([e.rule for e in self.all_extensions], **self.map_options)
 
-    def load_middleware(self, wsgi_app: WSGIApplication) -> WSGIApplication:
+    def get_list_middleware(
+            self
+    ) -> t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]:
+        """ 支持列表类型中间件
+
+        @return: t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]
+        """
+        middlewares = {}
+        for dotted_path in self.middlewares:
+            error, middleware = load_dot_path_colon_obj(dotted_path)
+            middlewares[(dotted_path, (error, middleware))] = {}
+        else:
+            return middlewares
+
+    def get_dict_middleware(
+            self
+    ) -> t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]:
+        """ 支持字典类型中间件
+
+        @return: t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]
+        """
+        middlewares = {}
+        for dotted_path, config in self.middlewares.items():
+            error, middleware = load_dot_path_colon_obj(dotted_path)
+            middlewares[(dotted_path, (error, middleware))] = config or {}
+        else:
+            return middlewares
+
+    def get_all_middlewares(
+            self
+    ) -> t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]:
+        """ 获取列表字典中间件
+
+        @return: t.Dict[t.Tuple[t.Text, t.Tuple[t.Optional[t.Text], t.Type[BaseMiddleware]]], t.Dict[t.Text, t.Any]]
+        """
+        middlewares = {}
+        if isinstance(self.middlewares, list):
+            middlewares = self.get_list_middleware()
+        if isinstance(self.middlewares, dict):
+            middlewares = self.get_dict_middleware()
+        return middlewares
+
+    def set_all_middlewares(self, wsgi_app: WSGIApplication) -> WSGIApplication:
         """ 载入配置文件中间件
 
         @param wsgi_app: 应用程序
         @return: WSGIApplication
         """
-        middlewares = {}
-        for dotted_path, config in self.middlewares.items():
-            error, middleware = load_dot_path_colon_obj(dotted_path)
-            middlewares[(dotted_path, (error, middleware))] = config
+        middlewares = self.get_all_middlewares()
         for dotted_path, (error, middleware) in middlewares:
             config = middlewares[(dotted_path, (error, middleware))]
             error_prefix_message = f'load {dotted_path} failed,'
@@ -161,7 +200,7 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
                 continue
             logger.debug(f'load middleware {dotted_path} succ')
             wsgi_app = middleware(
-                wsgi_app=wsgi_app, producer=self, **(config or {})
+                wsgi_app=wsgi_app, producer=self, **config
             )
         return wsgi_app
 
@@ -172,7 +211,7 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         """
         wsgi_app = WsgiApp(self).wsgi_app
         # 加载配置文件中定义的中间件修饰返回新app
-        return self.load_middleware(wsgi_app)
+        return self.set_all_middlewares(wsgi_app)
 
     def create_wsgi_server(self) -> wsgi.Server:
         """ 创建wsgi应用服务器
