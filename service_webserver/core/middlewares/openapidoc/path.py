@@ -242,5 +242,4 @@ def gen_openapi_path(
         )
         path_responses and path_definition.setdefault('responses', {}).update(path_responses)
         path[method.lower()] = path_definition
-    path = {k: v for k, v in sorted(path.items(), key=lambda item: item[0])}
     return path, security_schemes, path_definitions
