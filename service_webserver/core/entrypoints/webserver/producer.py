@@ -75,16 +75,16 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         self.listen_host = self.container.service.host
         self.listen_port = self.container.service.port
         middlewares = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.middlewares', default={})
-        self.middlewares = middlewares
+        self.middlewares = middlewares or {}
         map_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_options', default={})
-        self.map_options = map_options
+        self.map_options = map_options or {}
         max_connect = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.max_connect', default=None)
         max_connect = max_connect or DEFAULT_WEBSERVER_MAX_CONNECTIONS
         self.max_connect = self.max_connect or max_connect
         ssl_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.ssl_options', default={})
-        self.ssl_options = ssl_options
+        self.ssl_options = ssl_options or {}
         srv_options = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.srv_options', default={})
-        self.srv_options = srv_options
+        self.srv_options = srv_options or {}
         self.srv_options.setdefault('log', logger)
         self.srv_options.setdefault('log_output', True)
 
