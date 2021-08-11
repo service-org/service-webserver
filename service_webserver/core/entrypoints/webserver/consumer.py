@@ -61,6 +61,7 @@ class ReqConsumer(Entrypoint):
             response_model: t.Optional[t.Type[t.Any]] = DefaultResponseModel,
             include_in_doc: t.Optional[bool] = True,
             other_response: t.Optional[t.Dict[t.Union[int, t.Text], t.Dict[t.Text, t.Any]]] = None,
+            rule_options: t.Optional[t.Dict[t.Text, t.Any]] = None,
             **kwargs
     ) -> None:
         """ 初始化实例
@@ -75,44 +76,27 @@ class ReqConsumer(Entrypoint):
         @param response_class: 指定特定响应类
         @param response_model: 响应的验证模型
         @param include_in_doc: 是否暴露在文档
+        @param rule_options: 路由其它配置选项
         @param kwargs: 其它的相关配置选项
         """
-        # 头部映射 - 兼容不同Trace头部
+        # 用于兼容不同的追踪协议头部
         self.map_headers = {}
-        # 路由配置 - 基本的路由相关配置
-        methods = {m.upper() for m in methods}
         self.raw_url = raw_url
-        self.methods = methods
-        self.options = options
-        # 响应配置 - 指定响应类构建响应
-        self.response_class = response_class
-        # Api配置 - 构建OpenApi的文档
+        self._methods = methods
         self.tags = tags or []
         self._summary = summary
-        self._description = description
-        self._operation_id = operation_id
+        # werkzeug.routing.Rule
+        self.rule_options = rule_options or {}
         self.deprecated = deprecated
-        if isinstance(status_code, enum.IntEnum):
-            self.status_code = int(status_code)
-        else:
-            self.status_code = status_code
-        self.response_model = response_model
+        self._operation_id = operation_id
+        self._description = description
         self.other_response_fields = {}
+        self._status_code = status_code
+        self.response_model = response_model
+        self.response_class = response_class
         self.other_response = other_response or {}
-        for code, response in self.other_response.items():
-            is_dict_response = isinstance(response, dict)
-            if not is_dict_response:
-                logger.error(f"{code}'s response must was dict")
-                continue
-            response_model = response.get('model')
-            if not response_model:
-                logger.error(f"{code}'s response must has model")
-                continue
-            response_name = f'Response_{code}_{self.operation_id}'
-            response_field = gen_model_field(
-                name=response_name, type_=response_model
-            )
-            self.other_response_fields[code] = response_field
+        # other_response响应字段
+        self._setup_other_response_fields()
         self.include_in_doc = include_in_doc
         self.response_description = response_description
         super(ReqConsumer, self).__init__(**kwargs)
@@ -128,11 +112,21 @@ class ReqConsumer(Entrypoint):
         return re.sub(r'<[^:>]*:([^>]*)>', repl, self.raw_url)
 
     @AsLazyProperty
+    def methods(self) -> t.Set:
+        """ 请求方法 """
+        return {m.upper() for m in self._methods}
+
+    @AsLazyProperty
     def summary(self) -> t.Text:
         """ 接口简述 """
         data = self._summary or self.object_name
         desc = self.description.split(maxsplit=1)[0].strip()
         return f'{data} - {desc}' if desc else data
+
+    @AsLazyProperty
+    def status_code(self) -> int:
+        """ 响应代码 """
+        return int(self.status_code) if isinstance(self._status_code, enum.IntEnum) else self._status_code
 
     @AsLazyProperty
     def operation_id(self) -> t.Text:
@@ -177,7 +171,7 @@ class ReqConsumer(Entrypoint):
         @return: Rule
         """
         # 官方推荐并把endpoint的类型限定为字符串! 优化匹配暂且指定为当前entrypoint
-        return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.options)  # type: ignore
+        return Rule(self.raw_url, endpoint=self, methods=self.methods, **self.rule_options)  # type: ignore
 
     def setup(self) -> None:
         """ 生命周期 - 载入阶段
@@ -195,6 +189,26 @@ class ReqConsumer(Entrypoint):
         @return: None
         """
         self.producer.del_extension(self)
+
+    def _setup_other_response_fields(self) -> None:
+        """ 载入响应字段
+
+        @return: None
+        """
+        for code, response in self.other_response.items():
+            is_dict_response = isinstance(response, dict)
+            if not is_dict_response:
+                logger.error(f"{code}'s response must was dict")
+                continue
+            response_model = response.get('model')
+            if not response_model:
+                logger.error(f"{code}'s response must has model")
+                continue
+            response_name = f'Response_{code}_{self.operation_id}'
+            response_field = gen_model_field(
+                name=response_name, type_=response_model
+            )
+            self.other_response_fields[code] = response_field
 
     @staticmethod
     def _gen_response(results: t.Any) -> t.Tuple[t.Any, t.Dict, HttpStatus]:
