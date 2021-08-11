@@ -152,7 +152,7 @@ def gen_openapi_path_parameters(
     @param model_name_map: 模型映射
     @return: t.List[t.Dict[t.Text, t.Any]]
     """
-    parameters = []
+    parameters: t.List[t.Dict[t.Text, t.Any]] = []
     for param in flat_params:
         field_info = param.field_info
         field_info = t.cast(params.Param, field_info)

@@ -8,6 +8,7 @@ import sys
 import typing as t
 
 from http import HTTPStatus
+from logging import getLogger
 from service_webserver.core.response import HtmlResponse
 from service_core.core.service.entrypoint import Entrypoint
 from service_core.exchelper import gen_exception_description
@@ -19,6 +20,8 @@ if t.TYPE_CHECKING:
     from werkzeug.wrappers.response import StartResponse
 
 from .base import BaseMiddleware
+
+logger = getLogger(__name__)
 
 # 字典头部
 HTTPDictHeaders = t.Mapping[str, t.Union[str, int, t.Iterable[t.Union[str, int]]]]
@@ -49,6 +52,7 @@ class ErrHandlerMiddleware(BaseMiddleware):
         try:
             return self.wsgi_app(environ, start_response)  # type: ignore
         except Exception:
+            logger.error(f'middleware error', exc_info=True)
             exc_type, exc_value, exc_trace = sys.exc_info()
             data = gen_exception_description(exc_value)
             original = data['original']
