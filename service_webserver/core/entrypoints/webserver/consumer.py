@@ -61,7 +61,7 @@ class ReqConsumer(Entrypoint):
             response_model: t.Optional[t.Type[t.Any]] = DefaultResponseModel,
             include_in_doc: t.Optional[bool] = True,
             other_response: t.Optional[t.Dict[t.Union[int, t.Text], t.Dict[t.Text, t.Any]]] = None,
-            **options
+            **kwargs
     ) -> None:
         """ 初始化实例
 
@@ -75,7 +75,7 @@ class ReqConsumer(Entrypoint):
         @param response_class: 指定特定响应类
         @param response_model: 响应的验证模型
         @param include_in_doc: 是否暴露在文档
-        @param options: 其它的相关配置选项
+        @param kwargs: 其它的相关配置选项
         """
         # 头部映射 - 兼容不同Trace头部
         self.map_headers = {}
@@ -115,7 +115,7 @@ class ReqConsumer(Entrypoint):
             self.other_response_fields[code] = response_field
         self.include_in_doc = include_in_doc
         self.response_description = response_description
-        super(ReqConsumer, self).__init__()
+        super(ReqConsumer, self).__init__(**kwargs)
 
     def __repr__(self) -> t.Text:
         name = super(ReqConsumer, self).__repr__()
