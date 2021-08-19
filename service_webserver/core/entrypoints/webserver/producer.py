@@ -107,13 +107,7 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
 
         @return: None
         """
-        self.stopped = True
-        exception = (socket.error,)
-        kill_func = AsFriendlyFunc(self.wsgi_socket.close, all_exception=exception)
-        kill_func()
-        exception = (GreenletExit,)
-        kill_func = AsFriendlyFunc(self.gt.kill, all_exception=exception)
-        kill_func()
+        self.kill()
 
     def kill(self) -> None:
         """ 生命周期 - 强杀阶段
