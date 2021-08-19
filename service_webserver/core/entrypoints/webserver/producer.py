@@ -117,10 +117,10 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         self.stopped = True
         exception = (socket.error,)
         kill_func = AsFriendlyFunc(self.wsgi_socket.close, all_exception=exception)
-        kill_func()
+        self.wsgi_socket and kill_func()
         exception = (GreenletExit,)
         kill_func = AsFriendlyFunc(self.gt.kill, all_exception=exception)
-        kill_func()
+        self.gt and kill_func()
 
     def create_urls_map(self) -> Map:
         """ 创建wsgi urls map
