@@ -181,6 +181,7 @@ class ReqConsumer(Entrypoint):
         self.producer.reg_extension(self)
         # 主要用于后期异构系统之间通过头部传递特殊信息,例如调用链追踪时涉及的trace信息
         map_headers = self.container.config.get(f'{WEBSERVER_CONFIG_KEY}.map_headers', default={})
+        # 防止YAML中声明值为None
         self.map_headers = (map_headers or {}) | self.map_headers
 
     def stop(self) -> None:
