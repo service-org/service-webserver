@@ -31,6 +31,7 @@ class OpenApiDocMiddleware(BaseMiddleware):
             title: t.Text = '', description: t.Text = '',
             version: t.Text = '0.0.1',
             openapi_version: t.Text = '3.0.3',
+            root_path: t.Optional[t.Text] = '',
             openapi_url: t.Optional[t.Text] = '/openapi3.json',
             api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
             redoc_url: t.Optional[t.Text] = '/redoc',
@@ -49,6 +50,7 @@ class OpenApiDocMiddleware(BaseMiddleware):
         @param description: Api文档描述
         @param version: Api文档的版本
         @param openapi_version: OpenApi版本
+        @param root_path: 前端有代理时需设置
         @param openapi_url: OpenApi接口地址
         @param api_tags: Api用于分组的标签
         @param redoc_url: redoc文档的url地址
@@ -58,6 +60,7 @@ class OpenApiDocMiddleware(BaseMiddleware):
         self._title = title
         self._description = description
         self.version = version
+        self.root_path = root_path
         self.openapi_version = openapi_version
         self.openapi_url = openapi_url
         self.api_tags = api_tags or []
@@ -81,16 +84,18 @@ class OpenApiDocMiddleware(BaseMiddleware):
     @AsLazyProperty
     def redoc_ui_html(self) -> t.Text:
         """ redoc网页 """
+        openapi_url = self.root_path + self.openapi_url
         return get_redoc_html(
-            title=self.title + ' - Redoc',
-            openapi_url=self.openapi_url,
+            openapi_url=openapi_url,
+            title=self.title + ' - Redoc'
         )
 
     @AsLazyProperty
     def swagger_ui_html(self) -> t.Text:
         """ swagger网页 """
+        openapi_url = self.root_path + self.openapi_url
         return get_swagger_ui_html(
-            openapi_url=self.openapi_url,
+            openapi_url=openapi_url,
             title=self.title + ' - Swagger UI',
             oauth2_init=self.swagger_ui_oauth2_init,
             oauth2_redirect_url=self.swagger_ui_oauth2_redirect_url
@@ -123,13 +128,13 @@ class OpenApiDocMiddleware(BaseMiddleware):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
-        if request.path == self.redoc_url:
+        if request.path in (self.redoc_url, self.root_path + self.redoc_url):
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.redoc_ui_html]
-        if request.path == self.swagger_url:
+        if request.path in (self.swagger_url, self.root_path + self.swagger_url):
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.swagger_ui_html]
-        if request.path == self.openapi_url:
+        if request.path in (self.openapi_url, self.root_path + self.openapi_url):
             start_response('200 Ok', [('Content-Type', 'application/json')])
             return [self.openapi_json]
         return self.wsgi_app(environ, start_response)
