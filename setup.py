@@ -19,7 +19,7 @@ setup(
     long_description_content_type='text/markdown',
     packages=find_packages(exclude=['test', 'test.*']),
     install_requires=[
-        'pydantic==1.8.2',
+        'pydantic[email]==1.8.2',
         'werkzeug==2.0.1',
         'service-core', 'service-green'
     ],
