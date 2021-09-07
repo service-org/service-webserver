@@ -14,7 +14,8 @@ class Dependent(object):
     """ 通用依赖注入类 """
 
     def __init__(
-            self, *,
+            self,
+            *,
             use_cache: bool = True,
             name: t.Optional[t.Text] = None,
             path: t.Optional[t.Text] = None,

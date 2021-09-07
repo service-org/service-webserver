@@ -11,7 +11,6 @@ from inspect import Parameter
 from logging import getLogger
 from pydantic import create_model
 from pydantic.fields import Required
-from pydantic.fields import FieldInfo
 from pydantic.fields import ModelField
 from service_core.core.service import Service
 from service_webserver.core.request import Request
@@ -27,9 +26,7 @@ from . import params
 from .models import Dependent
 from .checks import is_subclass
 from .field import gen_model_field
-from .checks import is_scalar_field
 from .typed import get_typed_signature
-from .checks import is_scalar_sequence_field
 
 logger = getLogger(__name__)
 DependantIdent = t.Tuple[t.Callable[..., t.Any], t.Tuple[t.Text, ...]]
@@ -57,7 +54,7 @@ def get_flat_dependent(
         query_fields=dependent.query_fields.copy(),
         header_fields=dependent.header_fields.copy(),
         cookie_fields=dependent.cookie_fields.copy(),
-        body_fields=dependent.cookie_fields.copy(),
+        body_fields=dependent.body_fields.copy(),
         security_schemes=dependent.security_schemes.copy()
     )
     for sub_dependent in dependent.sub_dependents:
@@ -78,6 +75,7 @@ def get_flat_dependent(
 
 def get_body_field(*, dependent: Dependent, name: t.Text) -> t.Optional[ModelField]:
     """ 获取body字段
+
     @param dependent: 依赖对象
     @param name: 字段名称
     @return: t.Optional[ModelField]
@@ -88,6 +86,9 @@ def get_body_field(*, dependent: Dependent, name: t.Text) -> t.Optional[ModelFie
     body_model_name, body_field_media_types = f'Body_{name}', []
     BodyModel = create_model(body_model_name)
     BodyFieldInfo, required = params.Body, False
+    print('!' * 100)
+    print(flat_dependent.body_fields)
+    print('!' * 100)
     for field in flat_dependent.body_fields:
         field.field_info.embed = True
         # 收集的所有body字段加入模型对象中
@@ -134,59 +135,26 @@ def add_param_field(*, model_field: ModelField, dependent: Dependent) -> None:
         dependent.cookie_fields.append(model_field)
 
 
-def gen_param_field(
-        *,
-        param: Parameter,
-        param_name: t.Text,
-        ignore_default: t.Optional[bool] = None,
-        param_type: t.Optional[params.ParamTypes] = None,
-        default_field_info_class: t.Optional[t.Type[params.Param]] = None,
-) -> ModelField:
+def gen_param_field(*, param: Parameter, param_type: t.Optional[params.ParamTypes] = None) -> ModelField:
     """ 生成响应用的模型字段
 
     @param param: 参数对象
-    @param param_name: 参数名称
     @param param_type: 参数类型
-    @param ignore_default: 忽略掉默认值?
-    @param default_field_info_class: 字段类
     @return: ModelField
     """
-    default_value, has_schema = Required, False
-    # 字段存在默认值且不忽略默认值就设置当前默认值
-    default_value = param.default if param.default != param.empty and not ignore_default else default_value
-    default_field_info_class = default_field_info_class or params.Param
-    # 如果默认值是FieldInfo的子类实例例如params.X
-    if isinstance(default_value, FieldInfo):
-        has_schema = True
-        field_info = default_value
-        default_value = field_info.default
-        was_params = isinstance(field_info, params.Param)
-        has_inattr = getattr(field_info, 'in_', None) is None
-        # 判断是否为Body, Form, File等类型字段实例
-        was_others = was_params and has_inattr
-        # 如果默认的field_info设置则使用它来区分参数
-        was_others and setattr(field_info, 'in_', default_field_info_class.in_)
-        # 如果设置了param_type则使用它的值来区分参数
-        param_type and setattr(field_info, 'in_', param_type)
-    else:
-        # 如果不是FieldInfo实例则将其归为默认字段参数
-        field_info = default_field_info_class(default_value)
+    field_info = param.default
+    default_value = field_info.default
+    field_info.in_ = param_type if isinstance(field_info, params.Param) else None
     annotation = param.annotation if param.annotation != param.empty else t.Any
-    annotation = get_annotation_from_field_info(annotation, field_info, param_name)
-    # params.Header参数中定义了参数名是否需要转下划线
-    need_convert_underscores = getattr(field_info, 'convert_underscores', None)
-    if not field_info.alias and need_convert_underscores:
-        alias = param.name.replace('_', '-')
-    else:
-        alias = field_info.alias or param.name
-    required = default_value == Required
-    default = None if required else default_value
-    model_field = gen_model_field(name=param.name, type_=annotation, default=default,
-                                  alias=alias, required=required, field_info=field_info)
-    model_field.required = required
-    i = not has_schema and not is_scalar_field(model_field)
-    model_field.field_info = params.Body(field_info.default) if i else model_field.field_info
-    return model_field
+    annotation = get_annotation_from_field_info(annotation, field_info, param.name)
+    need_convert_underscores = getattr(field_info, 'convert_underscores', False)
+    alias = param.name if not field_info.alias else field_info.alias
+    alias = alias.replace('_', '-') if need_convert_underscores else alias
+    required = (True if default_value == Required else False) or field_info.required
+    return gen_model_field(**{
+        'default': None if required else default_value, 'field_info': field_info,
+        'name': param.name, 'alias': alias, 'type_': annotation, 'required': required,
+    })
 
 
 def add_non_field_param(*, param: Parameter, dependent: Dependent) -> t.Optional[bool]:
@@ -196,11 +164,9 @@ def add_non_field_param(*, param: Parameter, dependent: Dependent) -> t.Optional
     @param dependent: 依赖对象
     @return: t.Optional[bool]
     """
-    # security_scopes: SecurityScopes
     if is_subclass(param.annotation, SecurityScopes):
         dependent.security_scopes_field_name = param.name
         return True
-    # 大型应用中Service被注入到函数首个参数
     if param.annotation is _empty and param.name == 'self':
         return True
     # self: Service
@@ -285,15 +251,6 @@ def get_param_sub_dependant(
     )
 
 
-def get_path_param_names(path: t.Text) -> t.Set[t.Text]:
-    """ 从路径获取名称列表
-
-    @param path: 请求路径, 如: /items/{item_id}/?
-    @return: t.Set[t.Text]
-    """
-    return set(re.findall(r'{(.*?)}', path))
-
-
 def get_dependent(
         *, path: t.Text,
         call: t.Callable[..., t.Any],
@@ -303,52 +260,44 @@ def get_dependent(
 ) -> Dependent:
     """ 从调用对象获取依赖树
 
-    @param path: 请求路径, 如: /items/{item_id}/?
+    @param path: 请求路径
     @param call: 调用对象
     @param name: 依赖名称
     @param security_scopes: 权限范围列表
     @param use_cache: 是否使用缓存?
     @return: Dependent
     """
-    # 获取路径参数中的参数名集合,用于判断是否为路径参数
-    path_field_names = get_path_param_names(path)
-    # 重新为调用对象生成签名对象,主要反射所有参数的注解
-    call_signature = get_typed_signature(call)
-    dependent = Dependent(call=call, use_cache=use_cache, name=name, path=path)
-    for param_name, param in call_signature.parameters.items():
-        # 当参数默认值为依赖对象时,递归解析其dependent并注入
+    dependent = Dependent(use_cache=use_cache, call=call, name=name, path=path)
+    for param_name, param in get_typed_signature(call).parameters.items():
         if isinstance(param.default, params.Depended):
-            kwargs = {'param': param, 'path': path,
-                      'security_scopes': security_scopes}
-            sub_dependent = get_param_sub_dependant(**kwargs)
+            sub_dependent = get_param_sub_dependant(
+                param=param, path=path, security_scopes=security_scopes
+            )
             dependent.sub_dependents.append(sub_dependent)
             continue
-        # 当参数注解为Request,Response,Service,Scope忽略
         if add_non_field_param(param=param, dependent=dependent):
             continue
-        param_model_field = gen_param_field(param_name=param_name, param=param,
-                                            default_field_info_class=params.Query)
-        # 当参数名称存在于路径参数名集合中时,表示此字段为路径参数
-        if param_name in path_field_names:
-            is_scalar = is_scalar_field(param_model_field)
-            is_scalar or logger.error(f'path params must one of scalar types')
-            ignore_default = not isinstance(param.default, params.Path)
+        if isinstance(param.default, params.Path):
             param_model_field = gen_param_field(
-                param=param, default_field_info_class=params.Path,
-                param_name=param_name, ignore_default=ignore_default,
-                param_type=params.ParamTypes.path
+                param=param, param_type=params.ParamTypes.path
             )
             add_param_field(model_field=param_model_field, dependent=dependent)
-        # 当参数为除了路径参数之外的其他标准字段则将其作为查询参数
-        elif is_scalar_field(model_field=param_model_field):
+        if isinstance(param.default, params.Query):
+            param_model_field = gen_param_field(
+                param=param, param_type=params.ParamTypes.query
+            )
             add_param_field(model_field=param_model_field, dependent=dependent)
-        # 当参数注解类型为序列类且默认值为Query或Header实例时候
-        elif isinstance(param.default, (params.Query, params.Header)
-                        ) and is_scalar_sequence_field(param_model_field):
+        if isinstance(param.default, params.Header):
+            param_model_field = gen_param_field(
+                param=param, param_type=params.ParamTypes.header
+            )
             add_param_field(model_field=param_model_field, dependent=dependent)
-        # 除依赖,排除字段,路径字段,查询字段,多值查询/头部就算Body
-        else:
-            as_body = isinstance(param_model_field.field_info, params.Body)
-            as_body or logger.error(f'param {param_model_field.name} can only be request body')
+        if isinstance(param.default, params.Cookie):
+            param_model_field = gen_param_field(
+                param=param, param_type=params.ParamTypes.cookie
+            )
+            add_param_field(model_field=param_model_field, dependent=dependent)
+        if isinstance(param.default, params.Body):
+            param_model_field = gen_param_field(param=param)
             dependent.body_fields.append(param_model_field)
     return dependent

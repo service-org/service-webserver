@@ -18,7 +18,8 @@ if t.TYPE_CHECKING:
 
 
 def gen_model_field(
-        *, name: t.Text,
+        *,
+        name: t.Text,
         type_: t.Type[t.Any],
         class_validators: t.Optional[t.Dict[t.Text, Validator]] = None,
         model_config: t.Type[BaseConfig] = None,
@@ -28,7 +29,7 @@ def gen_model_field(
         alias: str = None,
         field_info: t.Optional[FieldInfo] = None,
 ) -> ModelField:
-    """ 生成响应用的模型字段
+    """ 生成模型字段
 
     @param name: 字段名称
     @param type_: 验证模型
@@ -41,11 +42,9 @@ def gen_model_field(
     @param field_info: 额外信息辅助验证
     @return: ModelField
     """
+    class_validators = class_validators or {}
     model_config = model_config or BaseConfig
     field_info = field_info or FieldInfo(None)
-    class_validators = class_validators or {}
-
-    # 模型字段,用其记录字段的名称,类型,默认值,别名,额外信息等
     return ModelField(
         name=name,
         type_=type_,

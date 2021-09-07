@@ -11,7 +11,7 @@ from pydantic.fields import FieldInfo
 from pydantic.fields import Undefined
 
 
-class ParamTypes(Enum):
+class ParamTypes(str, Enum):
     """ 参数类型枚举类 """
 
     path = 'path'
@@ -39,6 +39,7 @@ class Param(FieldInfo):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             deprecated: t.Optional[bool] = None,
@@ -57,14 +58,16 @@ class Param(FieldInfo):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
         @param extra: 额外的参数
         """
-        self.deprecated = deprecated
-        self.example = example
+        self.deprecated = bool(deprecated)
         self.examples = examples
+        self.example = example
+        self.required = bool(required)
         super().__init__(
             default,
             alias=alias,
@@ -103,6 +106,7 @@ class Path(Param):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             deprecated: t.Optional[bool] = None,
@@ -121,6 +125,7 @@ class Path(Param):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -139,6 +144,7 @@ class Path(Param):
             max_length=max_length,
             regex=regex,
             deprecated=deprecated,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -164,6 +170,7 @@ class Query(Param):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             deprecated: t.Optional[bool] = None,
@@ -182,6 +189,7 @@ class Query(Param):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -200,6 +208,7 @@ class Query(Param):
             max_length=max_length,
             regex=regex,
             deprecated=deprecated,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -226,6 +235,7 @@ class Header(Param):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             deprecated: t.Optional[bool] = None,
@@ -245,6 +255,7 @@ class Header(Param):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -264,6 +275,7 @@ class Header(Param):
             max_length=max_length,
             regex=regex,
             deprecated=deprecated,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -289,6 +301,7 @@ class Cookie(Param):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             deprecated: t.Optional[bool] = None,
@@ -308,6 +321,7 @@ class Cookie(Param):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -326,6 +340,7 @@ class Cookie(Param):
             max_length=max_length,
             regex=regex,
             deprecated=deprecated,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -351,6 +366,7 @@ class Body(FieldInfo):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             **extra: t.Any
@@ -371,11 +387,13 @@ class Body(FieldInfo):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
         @param extra: 额外的参数
         """
+        self.required = bool(required)
         self.embed = embed
         self.media_type = media_type
         self.example = example
@@ -417,6 +435,7 @@ class Form(Body):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             **extra: t.Any
@@ -437,6 +456,7 @@ class Form(Body):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -456,6 +476,7 @@ class Form(Body):
             min_length=min_length,
             max_length=max_length,
             regex=regex,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -480,6 +501,7 @@ class File(Form):
             min_length: t.Optional[int] = None,
             max_length: t.Optional[int] = None,
             regex: t.Optional[t.Text] = None,
+            required: t.Optional[bool] = None,
             example: t.Any = Undefined,
             examples: t.Optional[t.Dict[t.Text, t.Any]] = None,
             **extra: t.Any
@@ -500,6 +522,7 @@ class File(Form):
         @param min_length: 限制最小长度
         @param max_length: 限制最大长度
         @param regex: 限制正则匹配
+        @param required: 是否是必须的 ?
         @param example: 符合条件的例子
         @param examples: 其它的符合例子
         @param deprecated: 是否已废弃 ?
@@ -518,6 +541,7 @@ class File(Form):
             min_length=min_length,
             max_length=max_length,
             regex=regex,
+            required=required,
             example=example,
             examples=examples,
             **extra,
@@ -542,9 +566,10 @@ class Depended(object):
         self.dependent = dependent
 
     def __repr__(self) -> t.Text:
-        attr = getattr(self.dependent, '__name__', type(self.dependent).__name__)
-        cache = '' if self.use_cache else ', use_cache=False'
-        return f'{self.__class__.__name__}({attr}{cache})'
+        name = type(self.dependent).__name__
+        attr = getattr(self.dependent, '__name__', name)
+        note = '' if self.use_cache else ', use_cache=False'
+        return f'{self.__class__.__name__}({attr}{note})'
 
 
 class Security(Depended):
