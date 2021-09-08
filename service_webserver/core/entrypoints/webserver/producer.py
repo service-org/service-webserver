@@ -9,13 +9,11 @@ import eventlet
 import typing as t
 
 from eventlet import wsgi
-from eventlet import greenio
 from eventlet import wrap_ssl
 from logging import getLogger
 from werkzeug.routing import Map
 from eventlet.green import socket
 from greenlet import GreenletExit
-from eventlet.greenthread import GreenThread
 from eventlet.greenio.base import GreenSocket
 from service_core.core.decorator import AsFriendlyFunc
 from service_core.core.service.entrypoint import Entrypoint
@@ -25,7 +23,7 @@ from service_core.core.service.extension import StoreExtension
 from service_core.core.as_finder import load_dot_path_colon_obj
 from service_webserver.core.middlewares.base import BaseMiddleware
 from service_webserver.constants import DEFAULT_WEBSERVER_MAX_CONNECTIONS
-from service_webserver.core.middlewares.err_handler import ErrHandlerMiddleware
+from service_webserver.core.middlewares.exception import ExceptionMiddleware
 
 if t.TYPE_CHECKING:
     # 由于其定义在存根文件所以需要在TYPE_CHECKING下
@@ -204,8 +202,8 @@ class ReqProducer(Entrypoint, ShareExtension, StoreExtension):
         wsgi_app = WsgiApp(self).wsgi_app
         # 加载配置文件中定义的中间件修饰返回新app
         wsgi_app = self.set_all_middlewares(wsgi_app)
-        # 最外层加上异常处理防止其它中间件敏感泄漏
-        return ErrHandlerMiddleware(wsgi_app=wsgi_app, producer=self)
+        # 最外层加上异常处理防止其它中间件信息泄漏
+        return ExceptionMiddleware(wsgi_app=wsgi_app, producer=self)
 
     def create_wsgi_server(self) -> wsgi.Server:
         """ 创建wsgi应用服务器

@@ -16,7 +16,7 @@ if t.TYPE_CHECKING:
 from .base import BaseMiddleware
 
 
-class CProfilerMiddleware(BaseProfilerMiddleware, BaseMiddleware):
+class ProfilerMiddleware(BaseProfilerMiddleware, BaseMiddleware):
     """ 请求代理中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:

@@ -16,7 +16,7 @@ if t.TYPE_CHECKING:
 from .base import BaseMiddleware
 
 
-class ProxyHelpMiddleware(BaseProxyFix, BaseMiddleware):
+class ProxyFixMiddleware(BaseProxyFix, BaseMiddleware):
     """ 代理修复中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint, **kwargs: t.Any) -> None:

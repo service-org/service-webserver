@@ -31,7 +31,7 @@ HTTPIterHeaders = t.Iterable[t.Tuple[str, t.Union[str, int]]]
 HttpHeaders = t.Optional[t.Union[HTTPDictHeaders, HTTPIterHeaders]]
 
 
-class ErrHandlerMiddleware(BaseMiddleware):
+class ExceptionMiddleware(BaseMiddleware):
     """ 异常处理中间件类 """
 
     def __init__(self, *, wsgi_app: WSGIApplication, producer: Entrypoint) -> None:
@@ -40,7 +40,7 @@ class ErrHandlerMiddleware(BaseMiddleware):
         @param wsgi_app: 应用程序
         @param producer: 服务提供者
         """
-        super(ErrHandlerMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
+        super(ExceptionMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
         """ 请求处理器

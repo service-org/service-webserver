@@ -23,8 +23,8 @@ if t.TYPE_CHECKING:
 from .generate import get_openapi_json
 
 
-class OpenApiDocMiddleware(BaseMiddleware):
-    """ OpenApi doc 中间件类 """
+class OpenApi3Middleware(BaseMiddleware):
+    """ OpenApi3 中间件类 """
 
     def __init__(
             self, *, wsgi_app: WSGIApplication, producer: Entrypoint,
@@ -69,7 +69,7 @@ class OpenApiDocMiddleware(BaseMiddleware):
         self.servers = servers or []
         self.swagger_ui_oauth2_init = swagger_ui_oauth2_init
         self.swagger_ui_oauth2_redirect_url = swagger_ui_oauth2_redirect_url
-        super(OpenApiDocMiddleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
+        super(OpenApi3Middleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
 
     @AsLazyProperty
     def title(self) -> t.Text:
