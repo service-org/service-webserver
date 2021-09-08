@@ -81,37 +81,36 @@ def get_body_field(*, dependent: Dependent, name: t.Text) -> t.Optional[ModelFie
     @return: t.Optional[ModelField]
     """
     flat_dependent = get_flat_dependent(dependent, skip_repeats=True)
-    if not flat_dependent.body_fields:
-        return
-    body_model_name, body_field_media_types = f'Body_{name}', []
-    BodyModel = create_model(body_model_name)
-    BodyFieldInfo, required = params.Body, False
-    for field in flat_dependent.body_fields:
+    body_fields = flat_dependent.body_fields
+    if len(body_fields) == 0: return
+    if len(body_fields) == 1 and not body_fields[0].field_info.embed: return body_fields[0]
+    body_model, required = create_model(f'Body_{name}'), False
+    for field in body_fields:
         field.field_info.embed = True
         # 收集的所有body字段加入模型对象中
-        BodyModel.__fields__[field.name] = field
+        body_model.__fields__[field.name] = field
         # 有一个参数是必填则认为body必须的
-        required = required if required else field.required
-        # 如果字段的默认值是文件则构造file
-        is_file_field = isinstance(field.field_info, params.File)
-        BodyFieldInfo = params.File if is_file_field else BodyFieldInfo
-        # 如果字段的默认值是form则构建form
-        is_form_field = isinstance(field.field_info, params.Form)
-        BodyFieldInfo = params.Form if is_form_field else BodyFieldInfo
-        # 当不是上面值则归为body并记录类型
-        BodyFieldInfo == params.Body and body_field_media_types.append(
-            field.field_info.media_type
-        )
-    body_field_info_data = {'default': None}
-    # 如果只有一个body类型参数则将其类型设置为默认或用户传递的类型
-    if BodyFieldInfo == params.Body and len(body_field_media_types) == 1:
-        body_field_info_data['media_type'] = body_field_media_types[0]
-    # 根据上面的BodyModel,BodyFieldInfo来构造body field字段
-    body_field = gen_model_field(
-        name='body', type_=BodyModel, required=required, alias='body',
-        field_info=BodyFieldInfo(**body_field_info_data)
-    )
-    return body_field
+        required = required or field.required
+    file_field_media_types, form_field_media_types, body_field_media_types = [], [], []
+    for field in body_fields:
+        isinstance(field.field_info, params.File) and file_field_media_types.append(field.field_info.media_type)
+        isinstance(field.field_info, params.Form) and form_field_media_types.append(field.field_info.media_type)
+        isinstance(field.field_info, params.Body) and body_field_media_types.append(field.field_info.media_type)
+    if len(file_field_media_types) > 0:
+        body_field_info_class = params.File
+        body_field_media_type = file_field_media_types[0]
+        field_info = body_field_info_class(default=None, media_type=body_field_media_type)
+        return gen_model_field(name='body', type_=body_model, required=required, field_info=field_info)
+    if len(form_field_media_types) > 0:
+        body_field_info_class = params.Form
+        body_field_media_type = form_field_media_types[0]
+        field_info = body_field_info_class(default=None, media_type=body_field_media_type)
+        return gen_model_field(name='body', type_=body_model, required=required, field_info=field_info)
+    if len(body_field_media_types) > 0:
+        body_field_info_class = params.Body
+        body_field_media_type = body_field_media_types[0]
+        field_info = body_field_info_class(default=None, media_type=body_field_media_type)
+        return gen_model_field(name='body', type_=body_model, required=required, field_info=field_info)
 
 
 def add_param_field(*, model_field: ModelField, dependent: Dependent) -> None:
