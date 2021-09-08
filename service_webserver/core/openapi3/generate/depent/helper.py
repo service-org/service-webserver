@@ -86,9 +86,6 @@ def get_body_field(*, dependent: Dependent, name: t.Text) -> t.Optional[ModelFie
     body_model_name, body_field_media_types = f'Body_{name}', []
     BodyModel = create_model(body_model_name)
     BodyFieldInfo, required = params.Body, False
-    print('!' * 100)
-    print(flat_dependent.body_fields)
-    print('!' * 100)
     for field in flat_dependent.body_fields:
         field.field_info.embed = True
         # 收集的所有body字段加入模型对象中
