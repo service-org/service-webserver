@@ -119,9 +119,9 @@ class ReqConsumer(Entrypoint):
     @AsLazyProperty
     def summary(self) -> t.Text:
         """ 接口简述 """
-        data = self._summary or self.object_name
-        desc = self.description.split(maxsplit=1)[0].strip()
-        return f'{data} - {desc}' if desc else data
+        title = self._summary or self.object_name
+        desc = self.description.split(maxsplit=1)[0].strip() if self.description else ''
+        return f'{title} - {desc}' if desc else title
 
     @AsLazyProperty
     def status_code(self) -> int:
@@ -142,7 +142,7 @@ class ReqConsumer(Entrypoint):
     @AsLazyProperty
     def description(self) -> t.Text:
         """ 接口描述 """
-        return self._description or self.endpoint.__doc__ or ''
+        return (self._description or self.endpoint.__doc__ or '').strip()
 
     @AsLazyProperty
     def endpoint(self) -> t.Callable[..., t.Any]:
