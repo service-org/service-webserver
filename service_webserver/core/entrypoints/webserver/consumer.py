@@ -142,7 +142,7 @@ class ReqConsumer(Entrypoint):
     @AsLazyProperty
     def description(self) -> t.Text:
         """ 接口描述 """
-        return self._description or self.endpoint.__doc__
+        return self._description or self.endpoint.__doc__ or ''
 
     @AsLazyProperty
     def endpoint(self) -> t.Callable[..., t.Any]:
