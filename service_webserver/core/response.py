@@ -86,6 +86,7 @@ class HtmlResponse(Response):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
+        mimetype = mimetype or self.mimetype
         super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
@@ -112,6 +113,7 @@ class JsonResponse(Response):
         @param direct_passthrough: 是否以流式直传?
         """
         response = cjson.dumps(response)
+        mimetype = mimetype or self.mimetype
         super(JsonResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
@@ -138,6 +140,7 @@ class PlainTextResponse(Response):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
+        mimetype = mimetype or self.mimetype
         super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
@@ -183,6 +186,7 @@ class RedirectResponse(Response):
             f'<a href="{html.escape(location)}">{display_location}</a>. If'
             " not click the link."
         )
+        mimetype = mimetype or self.mimetype
         super(RedirectResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
@@ -212,6 +216,7 @@ class StreamResponse(Response):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
+        mimetype = mimetype or self.mimetype
         direct_passthrough = direct_passthrough or True
         response = FileWrapper(response, buffer_size=self.buffer_size)  # type: ignore
         super(StreamResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
@@ -242,6 +247,7 @@ class FileResponse(Response):
         @param content_type: 响应类型
         @param direct_passthrough: 是否以流式直传?
         """
+        mimetype = mimetype or self.mimetype
         direct_passthrough = direct_passthrough or True
         response = FileWrapper(response, buffer_size=self.buffer_size)  # type: ignore
         super(FileResponse, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)

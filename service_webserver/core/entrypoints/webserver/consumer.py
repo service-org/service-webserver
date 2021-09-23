@@ -22,6 +22,7 @@ from service_core.core.context import WorkerContext
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
 from service_webserver.core.response import HtmlResponse
+from service_core.core.storage import green_thread_local
 from service_core.core.service.entrypoint import Entrypoint
 from service_webserver.constants import WEBSERVER_CONFIG_KEY
 from service_core.exchelper import gen_exception_description
@@ -240,7 +241,7 @@ class ReqConsumer(Entrypoint):
         # fix: 此协程异常会导致收不到event最终内存溢出!
         try:
             context, results, excinfo = gt.wait()
-        except Exception:
+        except BaseException:
             results, excinfo = None, sys.exc_info()
             context = eventlet.getcurrent().context
         event.send((context, results, excinfo))
