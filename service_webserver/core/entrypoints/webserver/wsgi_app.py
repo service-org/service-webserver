@@ -7,6 +7,7 @@ from __future__ import annotations
 import typing as t
 import werkzeug.exceptions
 
+from logging import getLogger
 from service_webserver.core.request import Request
 
 if t.TYPE_CHECKING:
@@ -15,6 +16,8 @@ if t.TYPE_CHECKING:
     # 由于其定义在存根文件所以需要在TYPE_CHECKING下
     from werkzeug.wrappers.response import StartResponse
     from werkzeug.wrappers.request import WSGIEnvironment
+
+logger = getLogger(__name__)
 
 
 class WsgiApp(object):
@@ -36,6 +39,8 @@ class WsgiApp(object):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
+        request_data, request_form = request.data, request.form.to_dict()
+        logger.debug(f'got request data={request_data} form={request_form}')
         adapter = self.urls_map.bind_to_environ(environ)
         try:
             # 通过路由匹配到Rule再到对应的entrypoint入口
