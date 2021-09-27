@@ -100,6 +100,7 @@ class ReqConsumer(Entrypoint):
         self.include_in_doc = include_in_doc
         self.response_description = response_description
         super(ReqConsumer, self).__init__(**kwargs)
+        self.exec_timing = kwargs.get('exec_timing', 15)
 
     def __repr__(self) -> t.Text:
         name = super(ReqConsumer, self).__repr__()
