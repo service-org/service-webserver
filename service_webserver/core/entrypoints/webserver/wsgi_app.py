@@ -39,8 +39,8 @@ class WsgiApp(object):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
-        request_data, request_form = request.data, request.form.to_dict()
-        logger.debug(f'got request data={request_data} form={request_form}')
+        method, url, data, form = request.method, request.url, request.data, request.form.to_dict()
+        logger.debug(f'{method} {url} with data={data} form={form}')
         adapter = self.urls_map.bind_to_environ(environ)
         try:
             # 通过路由匹配到Rule再到对应的entrypoint入口
