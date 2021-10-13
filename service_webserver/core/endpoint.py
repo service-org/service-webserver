@@ -26,15 +26,15 @@ class Endpoint(BaseEndpoint):
         router_mapping = {}
         super_router_mapping = super(Endpoint, self).router_mapping()
         if not self.entrypoint_wrapper: return super_router_mapping
+        class_name = self.__class__.__name__
         for method in DEFAULT_METHODS_THAT_WITH_BODY:
-            request_method_name = method.upper()
-            self.entrypoint_options['methods'] = [request_method_name]
             # 将当前类下的entrypoint注入到对应类方法的entrypoints属性中
             cls_method = getattr(self.__class__, method.lower(), None)
             if not cls_method: continue
-            self.entrypoint_wrapper(**self.entrypoint_options)(cls_method)
+            self.entrypoint_wrapper(methods=[method.upper()], **self.entrypoint_options)(cls_method)
             ins_method = getattr(self, method.lower())
-            class_name, method_name = self.__class__.__name__, method.lower()
+            module_name = ins_method.__module__.rsplit('.', 1)[-1]
+            method_name = method.lower()
             # 最终注入到路由映射表中的应该是方法的点分路径和当前实例的方法
-            router_mapping.update({f'{class_name}.{method_name}': ins_method})
+            router_mapping.update({f'{module_name}.{class_name}.{method_name}': ins_method})
         return super_router_mapping | router_mapping
