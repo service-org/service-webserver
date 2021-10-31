@@ -9,7 +9,6 @@ import sys
 import enum
 import eventlet
 import typing as t
-import werkzeug.exceptions
 
 from http import HTTPStatus
 from logging import getLogger
@@ -18,6 +17,7 @@ from werkzeug.routing import Rule
 from pydantic.fields import ModelField
 from werkzeug.wrappers import Response
 from eventlet.greenthread import GreenThread
+from werkzeug.exceptions import HTTPException
 from service_core.core.context import WorkerContext
 from service_core.core.decorator import AsLazyProperty
 from service_webserver.core.response import JsonResponse
@@ -231,6 +231,15 @@ class ReqConsumer(Entrypoint):
         return payload, headers, status
 
     @staticmethod
+    def _get_response_status(exception: Exception) -> HTTPStatus:
+        """ 获取响应代码
+
+        @param exception: 异常对象
+        @return: int
+        """
+        return exception.code if isinstance(exception, HTTPException) else HTTPStatus.INTERNAL_SERVER_ERROR.value
+
+    @staticmethod
     def _link_results(gt: GreenThread, event: Event) -> None:
         """ 连接执行结果
 
@@ -329,7 +338,7 @@ class WebReqConsumer(ReqConsumer):
         @return: t.Any
         """
         exc_type, exc_value, exc_trace = excinfo
-        status = HTTPStatus.INTERNAL_SERVER_ERROR.value
+        status = self._get_response_status(exc_value)
         data = gen_exception_description(exc_value)
         original = data['original']
         original = f'{original} -' if original else original
@@ -392,7 +401,7 @@ class ApiReqConsumer(ReqConsumer):
         @return: t.Any
         """
         exc_type, exc_value, exc_trace = excinfo
-        status = HTTPStatus.INTERNAL_SERVER_ERROR.value
+        status = self._get_response_status(exc_value)
         data, call_id = None, context.worker_request_id
         errs = gen_exception_description(exc_value)
         payload = {'code': status, 'errs': errs, 'data': None, 'call_id': call_id}
