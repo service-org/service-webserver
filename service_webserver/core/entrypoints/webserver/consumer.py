@@ -329,12 +329,7 @@ class WebReqConsumer(ReqConsumer):
         @return: t.Any
         """
         exc_type, exc_value, exc_trace = excinfo
-        exc_name = exc_type.__name__
-        # 如果存在定义的同名异常类则使用对应的异常类的code值作为响应码
-        if hasattr(werkzeug.exceptions, exc_name):
-            status = getattr(werkzeug.exceptions, exc_name).code
-        else:
-            status = HTTPStatus.INTERNAL_SERVER_ERROR.value
+        status = HTTPStatus.INTERNAL_SERVER_ERROR.value
         data = gen_exception_description(exc_value)
         original = data['original']
         original = f'{original} -' if original else original
@@ -397,12 +392,7 @@ class ApiReqConsumer(ReqConsumer):
         @return: t.Any
         """
         exc_type, exc_value, exc_trace = excinfo
-        exc_name = exc_type.__name__
-        # 如果存在定义的同名异常类则使用对应的异常类的code值作为响应码
-        if hasattr(werkzeug.exceptions, exc_name):
-            status = getattr(werkzeug.exceptions, exc_name).code
-        else:
-            status = HTTPStatus.INTERNAL_SERVER_ERROR.value
+        status = HTTPStatus.INTERNAL_SERVER_ERROR.value
         data, call_id = None, context.worker_request_id
         errs = gen_exception_description(exc_value)
         payload = {'code': status, 'errs': errs, 'data': None, 'call_id': call_id}
