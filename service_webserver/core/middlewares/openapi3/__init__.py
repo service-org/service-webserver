@@ -127,13 +127,13 @@ class OpenApi3Middleware(BaseMiddleware):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
-        if request.path in (self.redoc_url, self.redoc_url):
+        if request.path == self.redoc_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.redoc_ui_html]
-        if request.path in (self.swagger_url, self.swagger_url):
+        if request.path == self.swagger_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.swagger_ui_html]
-        if request.path in (self.openapi_url, self.openapi_url):
+        if request.path == f'{self.root_path}{self.openapi_url}':
             start_response('200 Ok', [('Content-Type', 'application/json')])
             return [self.openapi_json]
         return self.wsgi_app(environ, start_response)
