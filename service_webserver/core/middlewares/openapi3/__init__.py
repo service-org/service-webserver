@@ -60,7 +60,7 @@ class OpenApi3Middleware(BaseMiddleware):
         self._title = title
         self._description = description
         self.version = version
-        self.root_path = root_path
+        self.root_path = root_path or ''
         self.openapi_version = openapi_version
         self.openapi_url = openapi_url
         self.api_tags = api_tags or []
@@ -84,18 +84,16 @@ class OpenApi3Middleware(BaseMiddleware):
     @AsLazyProperty
     def redoc_ui_html(self) -> t.Text:
         """ redoc网页 """
-        openapi_url = self.root_path + self.openapi_url
         return get_redoc_html(
-            openapi_url=openapi_url,
+            openapi_url=self.openapi_url,
             title=self.title + ' - Redoc'
         )
 
     @AsLazyProperty
     def swagger_ui_html(self) -> t.Text:
         """ swagger网页 """
-        openapi_url = self.root_path + self.openapi_url
         return get_swagger_ui_html(
-            openapi_url=openapi_url,
+            openapi_url=self.openapi_url,
             title=self.title + ' - Swagger UI',
             oauth2_init=self.swagger_ui_oauth2_init,
             oauth2_redirect_url=self.swagger_ui_oauth2_redirect_url
@@ -118,6 +116,7 @@ class OpenApi3Middleware(BaseMiddleware):
             api_tags=self.api_tags,
             servers=self.servers,
             openapi_version=self.openapi_version,
+            root_path=self.root_path,
         )
 
     def __call__(self, environ: WSGIEnvironment, start_response: StartResponse) -> t.Iterable[bytes]:
@@ -128,13 +127,13 @@ class OpenApi3Middleware(BaseMiddleware):
         @return: t.Iterable[bytes]
         """
         request = Request(environ)
-        if request.path in (self.redoc_url, self.root_path + self.redoc_url):
+        if request.path in (self.redoc_url, self.redoc_url):
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.redoc_ui_html]
-        if request.path in (self.swagger_url, self.root_path + self.swagger_url):
+        if request.path in (self.swagger_url, self.swagger_url):
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.swagger_ui_html]
-        if request.path in (self.openapi_url, self.root_path + self.openapi_url):
+        if request.path in (self.openapi_url, self.openapi_url):
             start_response('200 Ok', [('Content-Type', 'application/json')])
             return [self.openapi_json]
         return self.wsgi_app(environ, start_response)

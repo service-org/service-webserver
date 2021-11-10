@@ -23,6 +23,7 @@ def get_openapi_json(
         description: t.Text = '',
         version: t.Text = '0.0.1',
         openapi_version: t.Text = '3.0.3',
+        root_path: t.Optional[t.Text] = '',
         api_tags: t.Optional[t.List[t.Dict[t.Text: t.Any]]] = None,
         servers: t.Optional[t.List[t.Dict[t.Text: t.Union[t.Text, t.Any]]]] = None
 ) -> t.Text:
@@ -43,7 +44,7 @@ def get_openapi_json(
     definitions = gen_openapi_model_definitions(flat_models, model_name_map)
     for consumer in routers:
         path, security_schemes, path_definitions = gen_openapi_path(consumer, model_name_map)
-        path and paths.setdefault(consumer.path, {}).update(path)
+        path and paths.setdefault(f'{root_path}{consumer.path}', {}).update(path)
         security_schemes and components.setdefault('SecuritySchemes', {}).update(security_schemes)
         path_definitions and definitions.update(path_definitions)
     components['schemas'] = {k: definitions[k] for k in sorted(definitions)}
