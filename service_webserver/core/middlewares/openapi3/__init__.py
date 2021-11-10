@@ -62,11 +62,11 @@ class OpenApi3Middleware(BaseMiddleware):
         self.version = version
         self.root_path = root_path or ''
         self.openapi_version = openapi_version
-        self.openapi_url = openapi_url
         self.api_tags = api_tags or []
         self.redoc_url = redoc_url
         self.swagger_url = swagger_url
         self.servers = servers or []
+        self.openapi_url = f'{self.root_path}{openapi_url}'
         self.swagger_ui_oauth2_init = swagger_ui_oauth2_init
         self.swagger_ui_oauth2_redirect_url = swagger_ui_oauth2_redirect_url
         super(OpenApi3Middleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
@@ -133,7 +133,7 @@ class OpenApi3Middleware(BaseMiddleware):
         if request.path == self.swagger_url:
             start_response('200 Ok', [('Content-Type', 'text/html')])
             return [self.swagger_ui_html]
-        if request.path == f'{self.root_path}{self.openapi_url}':
+        if request.path == self.openapi_url:
             start_response('200 Ok', [('Content-Type', 'application/json')])
             return [self.openapi_json]
         return self.wsgi_app(environ, start_response)
