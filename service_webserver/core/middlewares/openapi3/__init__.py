@@ -66,7 +66,7 @@ class OpenApi3Middleware(BaseMiddleware):
         self.redoc_url = redoc_url
         self.swagger_url = swagger_url
         self.servers = servers or []
-        self.openapi_url = f'{self.root_path}{openapi_url}'
+        self.openapi_url = openapi_url
         self.swagger_ui_oauth2_init = swagger_ui_oauth2_init
         self.swagger_ui_oauth2_redirect_url = swagger_ui_oauth2_redirect_url
         super(OpenApi3Middleware, self).__init__(wsgi_app=wsgi_app, producer=producer)
@@ -84,16 +84,18 @@ class OpenApi3Middleware(BaseMiddleware):
     @AsLazyProperty
     def redoc_ui_html(self) -> t.Text:
         """ redoc网页 """
+        openapi_url = f'{self.root_path}{self.openapi_url}'
         return get_redoc_html(
-            openapi_url=self.openapi_url,
+            openapi_url=openapi_url,
             title=self.title + ' - Redoc'
         )
 
     @AsLazyProperty
     def swagger_ui_html(self) -> t.Text:
         """ swagger网页 """
+        openapi_url = f'{self.root_path}{self.openapi_url}'
         return get_swagger_ui_html(
-            openapi_url=self.openapi_url,
+            openapi_url=openapi_url,
             title=self.title + ' - Swagger UI',
             oauth2_init=self.swagger_ui_oauth2_init,
             oauth2_redirect_url=self.swagger_ui_oauth2_redirect_url
