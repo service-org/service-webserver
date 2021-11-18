@@ -59,7 +59,7 @@ class Response(BaseResponse):
         @param direct_passthrough: 是否以流式直传?
         """
         headers = headers or {}
-        headers.update({'Content-Type': get_content_type(self.mimetype, self.charset)})
+        headers.setdefault('Content-Type', get_content_type(self.mimetype, self.charset))
         super(Response, self).__init__(response, status, headers, mimetype, content_type, direct_passthrough)
 
 
@@ -176,7 +176,7 @@ class RedirectResponse(Response):
             # to a broken URI scheme (for instance itms-services).
             location = iri_to_uri(location, safe_conversion=True)
         headers = headers or {}
-        headers.update({'Location': location})
+        headers.setdefault('Location', location)
         display_location = html.escape(location)
         response = response or (
             '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">\n'
