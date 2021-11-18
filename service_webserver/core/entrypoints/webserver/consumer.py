@@ -388,8 +388,12 @@ class ApiReqConsumer(ReqConsumer):
         """
         if isinstance(results, Response): return results
         payload, headers, status = self._gen_response(results)
-        errs, call_id = None, context.worker_request_id
-        payload = {'code': status, 'errs': None, 'data': payload, 'call_id': call_id}
+        call_id = context.worker_request_id
+        if HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES:
+            data, errs = payload, None
+        else:
+            data, errs = None, payload
+        payload = {'code': status, 'errs': errs, 'data': data, 'call_id': call_id}
         response_class = self.response_class or JsonResponse
         return response_class(payload, status=status)
 
