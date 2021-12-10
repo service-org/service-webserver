@@ -153,7 +153,7 @@ class RedirectResponse(Response):
             self,
             location: t.Text,
             response: HttpResponse = None,
-            status: HTTPStatus = HTTPStatus.TEMPORARY_REDIRECT.value,
+            status: HTTPStatus = HTTPStatus.FOUND.value,
             headers: HTTPDictHeaders = None,
             mimetype: t.Optional[t.Text] = None,
             content_type: t.Optional[t.Text] = None,
